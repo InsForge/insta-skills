@@ -66,5 +66,8 @@ Sensitive actions are gated at the credential boundary: `secrets.read`, `deploy`
   for credential exposure into `./.insta/audit.jsonl`. `insta observe report` reviews it locally;
   `insta observe sync` uploads findings into the project's audit timeline (`insta events`).
 
-> Note: `insta metrics` / `insta logs` (observability) and `insta usage` (billing) are not yet
-> available — they arrive with later platform milestones.
+**Observability:** `insta metrics <db|compute> [group]` and `insta logs <db|compute> [group]` show
+resource metrics + runtime logs. Compute (Fly) is fully served; DB (Neon) has no realtime
+metrics/logs API, so `component=db` returns a provider-limitation note.
+
+> Note: `insta usage` (billing) is not yet available — it arrives with a later platform milestone.

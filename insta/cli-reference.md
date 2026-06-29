@@ -20,6 +20,8 @@ Command catalog, deploy, Dockerfile templates, and govern/observe. For the devel
 | `insta secrets list` [`--branch`] | list secret names only |
 | `insta deploy --image <url>` [`--branch <b>`] [`--group <g>`] [`--port <n>`] | deploy an image to a branch's compute group (gated: `deploy`) |
 | `insta manifest` [`--json`] | agent-legible env view: each branch's db / storage / compute + URLs |
+| `insta metrics <db\|compute>` [`group`] [`--branch --from --to --step --json`] | resource metrics (compute=Fly; db=provider-limited) |
+| `insta logs <db\|compute>` [`group`] [`--branch --limit --region --instance --json`] | runtime logs (compute=Fly; db=provider-limited) |
 | `insta events` [`--branch <b>`] [`--limit <n>`] [`--json`] | audit + agent-event timeline |
 | `insta policy get` [`--json`] · `insta policy set <action> <decision>` | view / set governance policy |
 | `insta approvals list` [`--status`] · `insta approvals approve <id>` [`--always`] · `insta approvals deny <id>` | manage gated actions |
