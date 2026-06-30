@@ -7,7 +7,7 @@ Command catalog, deploy, Dockerfile templates, and govern/observe. For the devel
 
 | Command | Purpose |
 |---|---|
-| `insta login --email <e> --password <p>` [`--api-url <url>`] · `insta logout` | auth (api-url + tokens persist; tokens auto-refresh) |
+| `insta login --email <e> --password <p>` [`--api-url <url>`] · `insta login --oauth <github\|google>` · `insta logout` | auth (api-url + tokens persist; tokens auto-refresh). `--oauth` opens a browser (loopback capture) — for interactive use; agents use email/password or an API token |
 | `insta status` [`--json`] | login + linked project + current branch |
 | `insta org list` [`--json`] · `insta org create <name>` | organizations |
 | `insta project create <name>` [`--org <id>`] | provision DB + storage + compute, link this dir |
@@ -20,6 +20,11 @@ Command catalog, deploy, Dockerfile templates, and govern/observe. For the devel
 | `insta secrets list` [`--branch`] | list secret names only |
 | `insta deploy --image <url>` [`--branch <b>`] [`--group <g>`] [`--port <n>`] | deploy an image to a branch's compute group (gated: `deploy`) |
 | `insta manifest` [`--json`] | agent-legible env view: each branch's db / storage / compute + URLs |
+| `insta metrics <db\|compute>` [`group`] [`--branch --from --to --step --json`] | resource metrics (compute=Fly; db=provider-limited) |
+| `insta logs <db\|compute>` [`group`] [`--branch --limit --region --instance --json`] | runtime logs (compute=Fly; db=provider-limited) |
+| `insta usage` [`--from --to --json`] | usage aggregated by meter, with `costUsd` (snapshotted at collection) |
+| `insta billing` [`--org <id>`] [`--json`] | current cycle summary: tier / included credit / used / overage / status |
+| `insta billing upgrade <pro\|enterprise>` · `insta billing portal` [`--org`] [`--no-open`] [`--json`] | Stripe Checkout to subscribe / Customer Portal to manage (opens a browser; `--no-open` prints the URL) |
 | `insta events` [`--branch <b>`] [`--limit <n>`] [`--json`] | audit + agent-event timeline |
 | `insta policy get` [`--json`] · `insta policy set <action> <decision>` | view / set governance policy |
 | `insta approvals list` [`--status`] · `insta approvals approve <id>` [`--always`] · `insta approvals deny <id>` | manage gated actions |

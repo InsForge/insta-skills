@@ -66,5 +66,10 @@ Sensitive actions are gated at the credential boundary: `secrets.read`, `deploy`
   for credential exposure into `./.insta/audit.jsonl`. `insta observe report` reviews it locally;
   `insta observe sync` uploads findings into the project's audit timeline (`insta events`).
 
-> Note: `insta metrics` / `insta logs` (observability) and `insta usage` (billing) are not yet
-> available — they arrive with later platform milestones.
+**Observability:** `insta metrics <db|compute> [group]` and `insta logs <db|compute> [group]` show
+resource metrics + runtime logs. Compute (Fly) is fully served; DB (Neon) has no realtime
+metrics/logs API, so `component=db` returns a provider-limitation note.
+
+**Usage & billing:** `insta usage` aggregates resource usage by meter (with `costUsd`); `insta billing`
+shows the current cycle (tier / included credit / used / overage). `insta billing upgrade <pro|enterprise>`
+and `insta billing portal` open Stripe in a browser (interactive). See `cli-reference.md`.
