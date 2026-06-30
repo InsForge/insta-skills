@@ -70,4 +70,6 @@ Sensitive actions are gated at the credential boundary: `secrets.read`, `deploy`
 resource metrics + runtime logs. Compute (Fly) is fully served; DB (Neon) has no realtime
 metrics/logs API, so `component=db` returns a provider-limitation note.
 
-> Note: `insta usage` (billing) is not yet available — it arrives with a later platform milestone.
+**Usage & billing:** `insta usage` aggregates resource usage by meter (with `costUsd`); `insta billing`
+shows the current cycle (tier / included credit / used / overage). `insta billing upgrade <pro|enterprise>`
+and `insta billing portal` open Stripe in a browser (interactive). See `cli-reference.md`.
