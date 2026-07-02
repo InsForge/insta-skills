@@ -5,33 +5,43 @@ description: Use when working in an InstaCloud-managed project (a `.insta/` dir 
 
 # InstaCloud
 
-InstaCloud provisions and governs a project's cloud resources behind one CLI and one credential
+InstaCloud provisions and governs a project's cloud services behind one CLI and one credential
 seam. The `insta` CLI talks **only** to the InstaCloud control plane — you never configure a cloud
-backend directly. Every project gets three resources you build **directly** against:
+backend directly. A project can have any number of **services**, added on demand — there are three
+service types you build **directly** against:
 
-- **Postgres** (Neon) — relational DB (autoscaling compute + read replicas).
-- **S3-compatible storage** (Tigris) — object/blob storage.
-- **Compute** (Fly.io) — your container(s) at `https://<app>.fly.dev`. A project can have several
-  **compute groups** (e.g. `default`, `backend`).
+- **postgres** (Neon) — relational DB (autoscaling compute + read replicas).
+- **storage** (Tigris, S3-compatible) — object/blob storage.
+- **compute** (Fly.io) — your container(s) at `https://<app>.fly.dev`. A project can have several
+  compute services (e.g. `api`, `worker`).
 
-**Setup:** `insta login --email <e> --password <p>` → `insta project create <name>` (provisions all
-three) or `insta project link <id>`. You land linked (`./.insta/project.json`) on branch `main`.
-`insta status` shows login + linked project + current branch. `insta secrets` writes every
-resource's credentials into `./.env` for local dev.
+**A new project starts empty** — no services are created automatically. Add what you need:
+`insta services add postgres <name>`, `insta services add compute <name>`,
+`insta services add storage <name>` (postgres/compute get a default access domain). `insta services
+list` / `insta services remove <type> <name>` manage them. Today a project may have multiple
+**compute** services but **at most one postgres and one storage** service.
+
+**Setup:** `insta login --email <e> --password <p>` → `insta project create <name>` (empty project)
+or `insta project link <id>`. You land linked (`./.insta/project.json`) on branch `main`. Then add
+services. `insta status` shows login + linked project + current branch. `insta secrets` writes every
+service's credentials into `./.env` for local dev.
 
 ## Core principle
 
-**One unit of work = one branch = one isolated environment.** `insta branch create <name>` gives
-each feature, experiment, or agent task:
+**One unit of work = one branch = one isolated environment.** `insta branch create <name>`
+materializes the project's **current services** onto the new branch — for each service the project
+has:
 
-- its own **Neon DB branch** (copy-on-write copy of the parent's data, own `DATABASE_URL`),
-- its own **copy-on-write storage bucket** (forked from the parent), and
-- a **clone of every compute group** — one isolated Fly app + URL each.
+- a **Neon DB branch** (copy-on-write copy of the parent's data, own `DATABASE_URL`) per postgres service,
+- a **copy-on-write storage bucket** (forked from the parent) per storage service, and
+- a **clone of every compute service** — one isolated Fly app + URL each.
 
-All three are created **at branch-create** (InstaCloud clones the compute groups immediately — not
-"on first deploy"), so a branch is a complete, runnable environment from the start. Branches run
-fully in parallel; nothing one does touches another. **Don't develop on `main`; don't pile multiple
-features on one branch.**
+These are created **at branch-create** (InstaCloud clones the compute services immediately — not
+"on first deploy"), so a branch is a complete, runnable environment from the start. A project with no
+services yields an empty branch; adding a service later materializes it onto every existing branch.
+Branches run fully in parallel; nothing one does touches another. **A project may have at most 10
+branches (a hard system limit).** **Don't develop on `main`; don't pile multiple features on one
+branch.**
 
 **Multiple independent features (or agent tasks) at once?** Give each its own branch **and its own
 subagent** — isolated DB + storage + compute + URLs mean zero collision. This is the recommended way
@@ -57,7 +67,8 @@ to parallelize agent work — see **workflow.md → Running multiple agents in p
 ## Governance & audit (this is the platform's core differentiator)
 
 Sensitive actions are gated at the credential boundary: `secrets.read`, `deploy`, `project.delete`,
-`branch.delete`. Each has a per-project policy of `allow` / `deny` / `approve`.
+`branch.delete`, and the service mutations `service.add` / `service.remove` / `service.scale` /
+`service.upgrade`. Each has a per-project policy of `allow` / `deny` / `approve`.
 
 - **`project.delete` requires approval by default.** A gated action returns *"approval required"*
   with an approval id; an **admin** runs `insta approvals approve <id>`, then you **re-run** the
@@ -66,10 +77,16 @@ Sensitive actions are gated at the credential boundary: `secrets.read`, `deploy`
   for credential exposure into `./.insta/audit.jsonl`. `insta observe report` reviews it locally;
   `insta observe sync` uploads findings into the project's audit timeline (`insta events`).
 
-**Observability:** `insta metrics <db|compute> [group]` and `insta logs <db|compute> [group]` show
-resource metrics + runtime logs. Compute (Fly) is fully served; DB (Neon) has no realtime
-metrics/logs API, so `component=db` returns a provider-limitation note.
+**Scaling (paid plans only):** `insta services scale compute <name> <number> [region]` sets a compute
+service's machine count; `insta services upgrade <compute|postgres> <name> <spec>` raises its spec
+(compute guest / postgres CU ceiling; up-only). New services start at the provider **minimum** spec.
+**Free-plan projects cannot scale or upgrade** (403) — upgrade the org first (`insta billing upgrade`).
 
-**Usage & billing:** `insta usage` aggregates resource usage by meter (with `costUsd`); `insta billing`
+**Observability:** `insta metrics <db|compute> [group]` and `insta logs <db|compute> [group]` show
+service metrics + runtime logs. Compute (Fly) is fully served; DB (Neon) has no realtime metrics/logs
+API, so `db` returns a provider-limitation note.
+
+**Usage & billing:** `insta usage` aggregates service usage by meter (with `costUsd`); `insta billing`
 shows the current cycle (tier / included credit / used / overage). `insta billing upgrade <pro|enterprise>`
-and `insta billing portal` open Stripe in a browser (interactive). See `cli-reference.md`.
+and `insta billing portal` open Stripe in a browser (interactive). **A user may own only one free org**
+— to create another org, upgrade an existing one to a paid tier first. See `cli-reference.md`.
