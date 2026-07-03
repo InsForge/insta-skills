@@ -23,6 +23,7 @@ Command catalog, deploy, Dockerfile templates, and govern/observe. For the devel
 | `insta secrets` [`--branch <name>`] [`-o <file>`] [`--print`] [`--json`] | secret seam → write creds to `./.env` (gated: `secrets.read`) |
 | `insta secrets list` [`--branch`] | list secret names only |
 | `insta deploy <dir>` / `--image <url>` [`--branch <b>`] [`--group <g>`] [`--port <n>`] | deploy to a compute service — a **source dir** (needs a `Dockerfile`; built remotely on Fly, no local Docker) or a **prebuilt image**. Defaults to the branch's sole compute service; `--group` picks by name (gated: `deploy`) |
+| `insta compute set-domain <host>` / `check-domain <host>` / `remove-domain <host>` [`--branch --group --json`] | attach / check / detach a **developer-owned custom domain** on a compute service — Fly issues the cert + routes; prints the DNS records to set in **your own** registrar (set/remove gated: `deploy`) |
 | `insta manifest` [`--json`] | agent-legible env view: each branch's db / storage / compute + URLs |
 | `insta metrics <db\|compute>` [`group`] [`--branch --from --to --step --json`] | service metrics (compute=Fly; db=provider-limited) |
 | `insta logs <db\|compute>` [`group`] [`--branch --limit --region --instance --json`] | runtime logs (compute=Fly; db=provider-limited) |
@@ -53,6 +54,12 @@ mismatch boots fine but every request fails with `instance refused connection on
 Secrets are **injected at deploy** as env vars (decrypted from the branch). Read creds from
 `process.env` in production; **never bake `./.env` into the image**. A compute service serves one app
 on one port at `https://<app>.fly.dev`.
+
+**Custom domain (bring your own):** `insta compute set-domain app.example.com` attaches your own
+domain to a branch's compute service and prints the DNS records to add **at your registrar** (a
+`CNAME → <app>.fly.dev` for a subdomain, `A`/`AAAA` for an apex, plus a validation `CNAME`). The cert
+(Let's Encrypt) + routing are handled for you; `insta compute check-domain <host>` shows status once
+DNS propagates. The domain's DNS lives in your zone — you set it, not InstaCloud.
 
 > Multiple compute services, `insta services scale`/`upgrade`, and **source-directory deploy**
 > (`insta deploy <dir>` → Fly remote builder, no local Docker) are all implemented.
