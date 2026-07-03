@@ -5,18 +5,21 @@ templates, see `cli-reference.md`.
 
 ## Branching is the default unit of work
 
-`insta branch create <name>` provisions a complete **isolated environment** at once:
+A project starts **empty** — add services first (`insta services add <postgres|storage|compute>
+<name>`). `insta branch create <name>` then materializes the project's **current** services onto the
+new branch at once:
 
-- its own **Neon DB branch** (copy-on-write copy of the parent's data, own `DATABASE_URL`),
-- its own **copy-on-write storage bucket** (forked from the parent at branch-create), and
-- a **clone of every compute group** in the project — each is its own Fly app + URL.
+- a **Neon DB branch** per postgres service (copy-on-write copy of the parent's data, own `DATABASE_URL`),
+- a **copy-on-write storage bucket** per storage service (forked from the parent at branch-create), and
+- a **clone of every compute service** — each is its own Fly app + URL.
 
-Branches run **fully in parallel** — nothing one does touches another. (A project whose root bucket
-was created before snapshots were enabled keeps one **shared** bucket — no per-branch storage isolation.)
+Branches run **fully in parallel** — nothing one does touches another. **A project may have at most
+10 branches (hard system limit).** (A project whose root bucket was created before snapshots were
+enabled keeps one **shared** bucket — no per-branch storage isolation.)
 
 Per-branch loop:
 
-1. `insta branch create feat-x` — isolated DB + storage + compute. **Does NOT auto-switch you.**
+1. `insta branch create feat-x` — materializes the project's current services (isolated DB + storage + compute). **Does NOT auto-switch you.**
 2. `insta branch switch feat-x` — sets the current branch (per-directory, in `./.insta/project.json`).
 3. `insta secrets` — writes feat-x's `DATABASE_URL`, `AWS_*` storage creds, etc. into `./.env`.
 4. Build your image, then `insta deploy --image <registry/img>` — deploys to feat-x's compute; **the

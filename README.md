@@ -1,7 +1,7 @@
 # InstaCloud Skills
 
 Agent skills (Markdown in the [Anthropic Skills format](https://docs.claude.com)) that teach AI
-coding agents how to operate cloud resources through an **InstaCloud** project — branching,
+coding agents how to operate cloud services through an **InstaCloud** project — branching,
 deploying, the credential seam, governance, and running multiple agents in parallel.
 
 ## Layout
