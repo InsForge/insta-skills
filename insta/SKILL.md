@@ -18,8 +18,12 @@ service types you build **directly** against:
 **A new project starts empty** — no services are created automatically. Add what you need:
 `insta services add postgres <name>`, `insta services add compute <name>`,
 `insta services add storage <name>` (postgres/compute get a default access domain). `insta services
-list` / `insta services remove <type> <name>` manage them. Today a project may have multiple
-**compute** services but **at most one postgres and one storage** service.
+list` / `insta services remove <type> <name>` manage them.
+
+A project may have **multiple services of every type** (up to 5 per type). Credentials are named
+per service: `DATABASE_URL_<NAME>`, `BUCKET_NAME_<NAME>`, … (service name upper-snaked). The
+**oldest** service of each type also gets the plain names (`DATABASE_URL`, `BUCKET_NAME`, …), so
+single-service projects work unchanged.
 
 **Setup:** `insta login --email <e> --password <p>` → `insta project create <name>` (empty project)
 or `insta project link <id>`. You land linked (`./.insta/project.json`) on branch `main`. Then add
@@ -60,14 +64,16 @@ to parallelize agent work — see **workflow.md → Running multiple agents in p
 - Treat `./.env` (from `insta secrets`) as the **only** credential source — never hardcode or print
   secret values. `DATABASE_URL` + compute + storage (`AWS_*` / `BUCKET_NAME`) are all **per-branch**
   (each branch copy-on-write-forks its parent's bucket; a legacy bucket created without snapshots
-  stays **shared** — no isolation).
+  stays **shared** — no isolation). User-set config belongs in `insta secrets set <NAME>`
+  (project-wide) / `--branch` for branch overrides — never hand-edit `.env` values you want to
+  persist; a redeploy re-injects the platform's view.
 - Track **every** schema change as a file under `migrations/` so it replays on a branch DB and again
   on `main` after a merge. **InstaCloud never merges databases — only migration files carry schema forward.**
 
 ## Governance & audit (this is the platform's core differentiator)
 
-Sensitive actions are gated at the credential boundary: `secrets.read`, `deploy`, `project.delete`,
-`branch.delete`, and the service mutations `service.add` / `service.remove` / `service.scale` /
+Sensitive actions are gated at the credential boundary: `secrets.read`, `secrets.write`, `deploy`,
+`project.delete`, `branch.delete`, and the service mutations `service.add` / `service.remove` / `service.scale` /
 `service.upgrade`. Each has a per-project policy of `allow` / `deny` / `approve`.
 
 - **`project.delete` requires approval by default.** A gated action returns *"approval required"*

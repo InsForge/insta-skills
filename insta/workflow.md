@@ -10,8 +10,13 @@ A project starts **empty** — add services first (`insta services add <postgres
 new branch at once:
 
 - a **Neon DB branch** per postgres service (copy-on-write copy of the parent's data, own `DATABASE_URL`),
-- a **copy-on-write storage bucket** per storage service (forked from the parent at branch-create), and
-- a **clone of every compute service** — each is its own Fly app + URL.
+- a **copy-on-write storage bucket** per storage service (forked from the parent at branch-create),
+- a **clone of every compute service** — each is its own Fly app + URL, and
+- the parent branch's **user-defined secrets** (from `insta secrets set --branch`) are cloned onto
+  the new branch; project-wide ones apply everywhere automatically.
+
+`insta secrets set` / `unset` changes take effect on the next `insta secrets` fetch or the next
+deploy — there's no hot reload of a running compute service.
 
 Branches run **fully in parallel** — nothing one does touches another. **A project may have at most
 10 branches (hard system limit).** (A project whose root bucket was created before snapshots were
