@@ -22,8 +22,9 @@ Per-branch loop:
 1. `insta branch create feat-x` — materializes the project's current services (isolated DB + storage + compute). **Does NOT auto-switch you.**
 2. `insta branch switch feat-x` — sets the current branch (per-directory, in `./.insta/project.json`).
 3. `insta secrets` — writes feat-x's `DATABASE_URL`, `AWS_*` storage creds, etc. into `./.env`.
-4. Build your image, then `insta deploy --image <registry/img>` — deploys to feat-x's compute; **the
-   command prints feat-x's URL**.
+4. `insta deploy ./app` (a source dir with a `Dockerfile` — built remotely on Fly, no local Docker)
+   or `insta deploy --image <registry/img>` (prebuilt) — deploys to feat-x's compute; **the command
+   prints feat-x's URL**.
 5. **Test against that URL directly** — public HTTPS, no tunnel.
 
 Non-default branches' compute **scales to zero when idle** (so parallel preview envs cost nothing

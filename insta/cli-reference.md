@@ -22,7 +22,7 @@ Command catalog, deploy, Dockerfile templates, and govern/observe. For the devel
 | `insta branch delete <name>` | tear down the branch's resources (gated: `branch.delete`) |
 | `insta secrets` [`--branch <name>`] [`-o <file>`] [`--print`] [`--json`] | secret seam → write creds to `./.env` (gated: `secrets.read`) |
 | `insta secrets list` [`--branch`] | list secret names only |
-| `insta deploy --image <url>` [`--branch <b>`] [`--group <g>`] [`--port <n>`] | deploy an image to a compute service (defaults to the branch's sole compute service; `--group` picks by name) (gated: `deploy`) |
+| `insta deploy <dir>` / `--image <url>` [`--branch <b>`] [`--group <g>`] [`--port <n>`] | deploy to a compute service — a **source dir** (needs a `Dockerfile`; built remotely on Fly, no local Docker) or a **prebuilt image**. Defaults to the branch's sole compute service; `--group` picks by name (gated: `deploy`) |
 | `insta manifest` [`--json`] | agent-legible env view: each branch's db / storage / compute + URLs |
 | `insta metrics <db\|compute>` [`group`] [`--branch --from --to --step --json`] | service metrics (compute=Fly; db=provider-limited) |
 | `insta logs <db\|compute>` [`group`] [`--branch --limit --region --instance --json`] | runtime logs (compute=Fly; db=provider-limited) |
@@ -40,9 +40,12 @@ branch copy-on-write-forks its parent's bucket; a project created before snapsho
 ## Deploy
 
 ```
-insta deploy --image <url> --port <n>      # deploy a pre-built / already-pushed image
+insta deploy ./app --port <n>              # build ./app (needs a Dockerfile) remotely on Fly, push, deploy
+insta deploy --image <url> --port <n>      # or deploy a pre-built / already-pushed image
 # targets the CURRENT branch's sole compute service (or --group <name> when there are several);
-# --branch targets another branch; the URL prints on success
+# --branch targets another branch; the URL prints on success.
+# Source mode needs the `fly` CLI (auto-installed via Homebrew on macOS) but NO Fly login — the
+# platform mints a short-lived, app-scoped deploy token for the build.
 ```
 
 `--port` must match the port the image actually listens on (`ENV PORT` / `EXPOSE` / server bind) — a
@@ -51,8 +54,8 @@ Secrets are **injected at deploy** as env vars (decrypted from the branch). Read
 `process.env` in production; **never bake `./.env` into the image**. A compute service serves one app
 on one port at `https://<app>.fly.dev`.
 
-> Multiple compute services, and `insta services scale`/`upgrade`, are implemented. Building from
-> source (remote builder, no local Docker) is still planned; today deploy takes a pre-built image.
+> Multiple compute services, `insta services scale`/`upgrade`, and **source-directory deploy**
+> (`insta deploy <dir>` → Fly remote builder, no local Docker) are all implemented.
 > More than one postgres/storage service per project is not yet supported (credential-seam limit).
 
 ## Dockerfile templates
