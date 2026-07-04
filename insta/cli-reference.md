@@ -22,6 +22,8 @@ Command catalog, deploy, Dockerfile templates, and govern/observe. For the devel
 | `insta branch delete <name>` | tear down the branch's resources (gated: `branch.delete`) |
 | `insta secrets` [`--branch <name>`] [`-o <file>`] [`--print`] [`--json`] | secret seam → write creds to `./.env` (gated: `secrets.read`) |
 | `insta secrets list` [`--branch`] | list secret names only |
+| `insta secrets set <NAME> [value] [--branch <b>]` | Set a user secret (project-wide by default; value from stdin if omitted) |
+| `insta secrets unset <NAME> [--branch <b>]`       | Remove a user secret |
 | `insta deploy <dir>` / `--image <url>` [`--branch <b>`] [`--group <g>`] [`--port <n>`] | deploy to a compute service — a **source dir** (needs a `Dockerfile`; built remotely on Fly, no local Docker) or a **prebuilt image**. Defaults to the branch's sole compute service; `--group` picks by name (gated: `deploy`) |
 | `insta compute set-domain <host>` / `check-domain <host>` / `remove-domain <host>` [`--branch --group --json`] | attach / check / detach a **developer-owned custom domain** on a compute service — Fly issues the cert + routes; prints the DNS records to set in **your own** registrar (set/remove gated: `deploy`) |
 | `insta manifest` [`--json`] | agent-legible env view: each branch's db / storage / compute + URLs |
@@ -37,6 +39,15 @@ Command catalog, deploy, Dockerfile templates, and govern/observe. For the devel
 
 `DATABASE_URL` + compute + storage (`AWS_*` / `BUCKET_NAME`) are **per-branch** (new projects: each
 branch copy-on-write-forks its parent's bucket; a project created before snapshots keeps a **shared** bucket).
+A project may have **multiple services of every type**, up to `INSTA_MAX_SERVICES_PER_TYPE` (default
+5) per type. Minted credentials are named per service (service name upper-snaked): `DATABASE_URL_<NAME>`,
+`BUCKET_NAME_<NAME>`, `AWS_ACCESS_KEY_ID_<NAME>`, etc. The **oldest** service of each type also gets
+the plain unsuffixed names, so single-service projects are unaffected.
+
+`insta secrets set <NAME>` / `unset <NAME>` manage **user-defined** secrets — reserved names
+(`DATABASE_URL`, `AWS_*`, `BUCKET_NAME`, and any other live minted credential name) are rejected to
+avoid clobbering platform-managed credentials. Gated: `secrets.write`. Changes apply on the next
+`insta secrets` fetch or the next deploy — no hot reload.
 
 ## Deploy
 
@@ -61,9 +72,9 @@ domain to a branch's compute service and prints the DNS records to add **at your
 (Let's Encrypt) + routing are handled for you; `insta compute check-domain <host>` shows status once
 DNS propagates. The domain's DNS lives in your zone — you set it, not InstaCloud.
 
-> Multiple compute services, `insta services scale`/`upgrade`, and **source-directory deploy**
-> (`insta deploy <dir>` → Fly remote builder, no local Docker) are all implemented.
-> More than one postgres/storage service per project is not yet supported (credential-seam limit).
+> Multiple services of every type (postgres/storage/compute, up to 5 each), `insta services
+> scale`/`upgrade`, and **source-directory deploy** (`insta deploy <dir>` → Fly remote builder, no
+> local Docker) are all implemented.
 
 ## Dockerfile templates
 
@@ -84,8 +95,8 @@ unknown paths rewritten to `index.html`; deploy it as its own compute service or
 
 ## Govern & observe
 
-- **Policy** gates `secrets.read`, `deploy`, `branch.delete`, `project.delete`, and `service.add` /
-  `service.remove` / `service.scale` / `service.upgrade`. `approve` = require a
+- **Policy** gates `secrets.read`, `secrets.write`, `deploy`, `branch.delete`, `project.delete`, and
+  `service.add` / `service.remove` / `service.scale` / `service.upgrade`. `approve` = require a
   human: the action returns `approval_required`; an admin runs `insta approvals approve <id>`, then
   you **re-run** it (single-use grant). `project.delete` is gated by default. `--always` on approve
   flips the policy to `allow`.
