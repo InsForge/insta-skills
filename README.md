@@ -11,7 +11,7 @@ skills/
 ├── README.md            ← you are here
 └── insta/
     ├── SKILL.md         ← entry skill: the model, setup, two non-negotiables, governance
-    ├── workflow.md      ← branch → build → deploy → test → promote; parallel agents; gotchas
+    ├── references/      ← task guides: setup · deploy · branching · governance · operate
     └── cli-reference.md ← full `insta` command catalog, deploy, Dockerfiles, govern/observe
 ```
 
