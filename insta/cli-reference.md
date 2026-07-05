@@ -1,7 +1,7 @@
 # InstaCloud CLI reference
 
-Command catalog, deploy, Dockerfile templates, and govern/observe. For the development *process*
-(branch → deploy → test → promote) and the deploy gotchas, see `workflow.md`.
+Command catalog with flags and gates. Task guidance lives in `references/` — setup, deploy,
+branching, governance, operate.
 
 ## Commands
 
@@ -79,20 +79,7 @@ DNS propagates. The domain's DNS lives in your zone — you set it, not InstaClo
 
 ## Dockerfile templates
 
-**Backend** (reads creds from env, listens on `--port`):
-```dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --omit=dev
-COPY . .
-EXPOSE 8080
-CMD ["node", "server.js"]   # reads process.env.DATABASE_URL etc.
-```
-**Full-stack:** ship frontend + backend as **one container, one port** — have the backend serve the
-built frontend. One `insta deploy`, one URL, same-origin calls.
-**Separate SPA:** build static assets, serve from a tiny static-server container (e.g. caddy) with
-unknown paths rewritten to `index.html`; deploy it as its own compute service or project.
+Moved to [references/deploy.md](references/deploy.md) (backend / full-stack / SPA patterns).
 
 ## Govern & observe
 

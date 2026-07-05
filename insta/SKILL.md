@@ -72,9 +72,10 @@ app listens on>` → **verify the printed URL serves** (below). The app reads `p
 `--email/--password`; then `insta project create`. Local/oss → nothing to set up beyond the daemon.
 
 **A unit of work on an existing project (feature, fix, experiment, agent task):** one branch per
-unit of work — see the core principle below and **workflow.md**. Never develop on `main`.
+unit of work — see the core principle below and **[branching.md](references/branching.md)**.
+Never develop on `main`.
 
-**Anything else (configure, debug, inspect):** light preflight, then the matching reference.
+**Anything else (configure, debug, inspect):** light preflight, then the matching reference below.
 
 ## Preflight & context (before mutations)
 
@@ -92,7 +93,7 @@ Skip this ceremony for the ship-from-zero chain above — `status` is its first 
   `logs`, `events`) over `insta branch switch` when acting on a branch you don't own — `switch`
   mutates the shared per-directory link and races parallel agents in the same checkout.
 - For parallel agents, the rule is **1:1:1 — task ↔ git worktree ↔ insta branch** (each worktree has
-  its own link, so `switch` is safe there). See workflow.md.
+  its own link, so `switch` is safe there). See [branching.md](references/branching.md).
 
 ## Core principle
 
@@ -104,8 +105,8 @@ Branches run fully in parallel; nothing one does touches another. **≤10 branch
 limit).** Don't develop on `main`; don't pile multiple features on one branch.
 
 **Multiple independent features (or agent tasks) at once?** Give each its own branch **and its own
-subagent** — isolated DB + storage + compute + URLs mean zero collision. See **workflow.md →
-Running multiple agents in parallel**.
+subagent** — isolated DB + storage + compute + URLs mean zero collision. See
+**[branching.md](references/branching.md) → Parallel agents**.
 
 ## Verify before reporting (deploys)
 
@@ -116,9 +117,8 @@ serves:
 1. Poll the printed URL (`curl -s -o /dev/null -w '%{http_code}'`) every ~3s for up to ~60s.
    Scale-to-zero branches cold-start on the first request — allow a slow first hit.
 2. `200` (or the app's expected status) → deployed; report the URL.
-3. Still failing → triage: `insta logs compute [group] --branch <b> --limit 100`. The two most
-   common causes are the deploy gotchas in workflow.md — a `--port` that doesn't match the app's
-   listen port, and a container `CMD` that gates startup on a hung migration.
+3. Still failing → the ordered triage list in [operate.md](references/operate.md) (port mismatch
+   and migration-gated startup account for most failures).
 4. Report the exact failing state — never claim success you didn't observe.
 
 ## Approval relay (CRITICAL — gated actions)
@@ -157,13 +157,21 @@ insta approvals list --status pending        # outstanding gates
 
 Use `--json` wherever you parse output.
 
-## Where to go
+## Routing
 
-- **Doing the work** → **workflow.md**: the branch loop, parallel agents (a git worktree + an insta
-  branch each), promoting a branch to main (merge → migrate → redeploy → validate), and the deploy
-  gotchas that bite.
-- **Command lookup** → **cli-reference.md**: the full CLI catalog, deploy, Dockerfile templates, and
-  the govern/observe commands.
+For anything beyond the quick operations, load the reference that matches the intent — one is
+usually enough, two at most:
+
+| Intent | Reference | Covers |
+| --- | --- | --- |
+| Create or connect things ("set up", "new project", "add a database/compute") | [setup.md](references/setup.md) | CLI install/upgrade, cloud vs oss target, auth, project, services, ship-from-zero |
+| Ship code or manage releases | [deploy.md](references/deploy.md) | image vs source (remote build), `--port` semantics, secrets at runtime, verify procedure, Dockerfile templates, custom domains |
+| Branch environments, parallel agents, promotion ("preview env", "sandbox per task", "merge to main") | [branching.md](references/branching.md) | **the data-forking env model** (what actually clones), branch loop, 1:1:1 worktree pattern + dispatch brief, promotion, migration discipline |
+| Approvals, policy, audit, credential scanning | [governance.md](references/governance.md) | gates catalog, the approval relay, events timeline, observe hook, agent audit patterns |
+| Check health or debug failures | [operate.md](references/operate.md) | status/manifest triage, ordered deploy-failure list, metrics/logs, cloud-vs-oss differences |
+| Command lookup | [cli-reference.md](cli-reference.md) | the full CLI catalog with flags and gates |
+
+If a request spans two areas ("deploy and check it's healthy"), load both and answer once.
 
 ## Two non-negotiables (wherever you are)
 
@@ -178,27 +186,12 @@ Use `--json` wherever you parse output.
 
 ## Governance & audit (this is the platform's core differentiator)
 
-The gate mechanics and the relay procedure are above. Beyond those:
+The gate mechanics and the relay procedure are above; the observe credential-audit hook, the events
+timeline, and agent audit patterns are in [governance.md](references/governance.md).
 
-- The **`insta observe`** hook (auto-installed on `project create`/`link`) scans your agent tool-use
-  for credential exposure into `./.insta/audit.jsonl`. `insta observe report` reviews it locally;
-  `insta observe sync` uploads findings into the project's audit timeline (`insta events`).
-- `insta policy get` shows the per-project decisions; changing policy (`insta policy set`) is an
-  admin decision — propose it to the human rather than assuming.
-
-**Scaling (paid plans only):** `insta services scale compute <name> <number> [region]` sets a compute
-service's machine count; `insta services upgrade <compute|postgres> <name> <spec>` raises its spec
-(compute guest / postgres CU ceiling; up-only). New services start at the provider **minimum** spec.
-**Free-plan projects cannot scale or upgrade** (403) — upgrade the org first (`insta billing upgrade`).
-
-**Observability:** `insta metrics <db|compute> [group]` and `insta logs <db|compute> [group]` show
-service metrics + runtime logs. Compute is fully served; DB has no realtime metrics/logs API, so
-`db` returns a provider-limitation note.
-
-**Usage & billing:** `insta usage` aggregates service usage by meter (with `costUsd`); `insta billing`
-shows the current cycle (tier / included credit / used / overage). `insta billing upgrade <pro|enterprise>`
-and `insta billing portal` open Stripe in a browser (interactive). **A user may own only one free org**
-— to create another org, upgrade an existing one to a paid tier first. See `cli-reference.md`.
+**Scaling & billing (cloud, paid plans):** `insta services scale/upgrade` (free plans get 403 —
+`insta billing upgrade` first); `insta usage` / `insta billing` show cycle usage and cost. One free
+org per user. Full flags in [cli-reference.md](cli-reference.md).
 
 ## Response format
 
