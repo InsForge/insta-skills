@@ -32,8 +32,8 @@ Per-branch loop:
    prints feat-x's URL**.
 5. **Test against that URL directly** — public HTTPS, no tunnel.
 
-Non-default branches' compute **scales to zero when idle** (so parallel preview envs cost nothing
-while unused); the default branch (`main`) stays always-on. Scale-to-zero is a cost lever, **not**
+Every branch's compute — `main` included — **scales to zero when idle** (so unused envs cost nothing;
+the first request after idle pays a brief cold start). Scale-to-zero is a cost lever, **not**
 load-based horizontal scaling.
 
 ## Running multiple agents in parallel (encouraged)
