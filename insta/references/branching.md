@@ -21,8 +21,8 @@ Two consequences to internalize:
 - A legacy project whose root bucket predates snapshots keeps one **shared** bucket — no storage
   isolation. `insta manifest` shows what a branch really has.
 
-**Limits:** ≤10 branches per project (hard). `branch create` does **NOT** switch you; branch
-compute scales to zero when idle (cost lever, not autoscaling); `main` stays always-on.
+**Limits:** ≤10 branches per project (hard). `branch create` does **NOT** switch you; compute
+scales to zero when idle on every branch — `main` included (cost lever, not autoscaling).
 
 ## The branch loop (one unit of work)
 
