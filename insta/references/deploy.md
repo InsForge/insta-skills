@@ -5,12 +5,17 @@ Ship code to a branch's compute — image or source — and verify it actually s
 ## Two modes (pick exactly one)
 
 ```bash
-insta deploy --image <registry/img> --port <n>    # prebuilt image
+insta deploy --image <registry/img> --port <n>    # prebuilt image — ALWAYS pass --port
 insta deploy <dir> --port <n>                     # source dir — REQUIRES a Dockerfile
 # both: [--branch <b>] targets another branch · [--group <g>] picks a compute service by name
 ```
 
 Targets the **current branch's** sole compute service by default; the URL prints on success.
+
+Never run a bare `insta deploy <dir>` and assume the port: without `--port` older CLIs default
+to 8080 regardless of the Dockerfile (boots "fine", every request refused — see below). Newer
+CLIs default from the Dockerfile's `EXPOSE` and print what they picked — read that line and
+confirm it matches the server's listen port.
 
 ## How source mode builds (what actually happens)
 
