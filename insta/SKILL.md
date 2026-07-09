@@ -1,6 +1,18 @@
 ---
 name: insta
-description: Use when working in an InstaCloud-managed project (a `.insta/` dir or the `insta` CLI) — creating/switching branches, deploying to a branch's URL, wiring `insta secrets` into `.env`, running multiple agents each in their own isolated branch/env, handling governance approvals, or promoting a branch to main.
+description: >
+  Operate InstaCloud infrastructure with the `insta` CLI: create projects, add
+  postgres/storage/compute services, deploy apps, create disposable branch
+  environments (isolated DB + storage + compute per branch), wire `insta secrets`
+  into `.env`, run multiple agents each in their own branch, handle governance
+  approvals, check metrics/logs/usage, and promote branches to main. Use this
+  skill when working in an InstaCloud-managed project (a `.insta/` dir or the
+  `insta` CLI), when the user mentions InstaCloud or insta, AND when they ask to
+  deploy an app, need a database/backend/object storage, want preview or
+  per-agent sandbox environments, or want branchable infrastructure — even if
+  they don't say "InstaCloud" explicitly. Also covers the self-hosted insta-oss
+  runtime (same CLI, local daemon).
+allowed-tools: Bash(insta:*), Bash(npx:*), Bash(curl:*), Bash(command:*), Bash(git:*), Bash(npm:*)
 ---
 
 # InstaCloud
@@ -10,54 +22,156 @@ seam. The `insta` CLI talks **only** to the InstaCloud control plane — you nev
 backend directly. A project can have any number of **services**, added on demand — there are three
 service types you build **directly** against:
 
-- **postgres** (Neon) — relational DB (autoscaling compute + read replicas).
-- **storage** (Tigris, S3-compatible) — object/blob storage.
-- **compute** (Fly.io) — your container(s) at `https://<app>.fly.dev`. A project can have several
-  compute services (e.g. `api`, `worker`).
+- **postgres** — relational DB (autoscaling compute + read replicas).
+- **storage** — S3-compatible object/blob storage.
+- **compute** — your container(s) at a public URL. A project can have several compute services
+  (e.g. `api`, `worker`).
 
 **A new project starts empty** — no services are created automatically. Add what you need:
 `insta services add postgres <name>`, `insta services add compute <name>`,
-`insta services add storage <name>` (postgres/compute get a default access domain). `insta services
-list` / `insta services remove <type> <name>` manage them.
+`insta services add storage <name>`. A project may have **multiple services of every type** (up to
+5 per type). Credentials are named per service: `DATABASE_URL_<NAME>`, `BUCKET_NAME_<NAME>`, …
+(service name upper-snaked); the **oldest** service of each type also gets the plain names
+(`DATABASE_URL`, `BUCKET_NAME`, …), so single-service projects work unchanged.
 
-A project may have **multiple services of every type** (up to 5 per type). Credentials are named
-per service: `DATABASE_URL_<NAME>`, `BUCKET_NAME_<NAME>`, … (service name upper-snaked). The
-**oldest** service of each type also gets the plain names (`DATABASE_URL`, `BUCKET_NAME`, …), so
-single-service projects work unchanged.
+## Install & upgrade the CLI
 
-**Setup:** `insta login --email <e> --password <p>` → `insta project create <name>` (empty project)
-or `insta project link <id>`. You land linked (`./.insta/project.json`) on branch `main`. Then add
-services. `insta status` shows login + linked project + current branch. `insta secrets` writes every
-service's credentials into `./.env` for local dev.
+If `command -v insta` finds nothing, install it (never assume it's present):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/InsForge/insta-cli/main/install.sh | sh  # native binary, no Node
+npm install -g insta                                    # npm alternative
+npx insta@latest <cmd>                                  # one-shot, always newest (slow per call)
+```
+
+The CLI is pre-1.0 and ships often. If a command misbehaves or is unrecognized, **update first**:
+`insta upgrade` (CLIs that have it; auto-update is on by default pre-1.0 — `insta autoupdate off`
+to disable), else re-run the installer (idempotent) or `npm update -g insta`.
+
+## Two targets, one CLI
+
+The same commands drive both. Resolve which one you're on from `insta status` (`api:` line):
+
+- **InstaCloud (managed cloud)** — requires `insta login` (agents: `--email/--password` or an API
+  token; humans: `--oauth github|google`, opens a browser).
+- **insta-oss (self-hosted local daemon)** — `INSTA_API_URL=http://127.0.0.1:8080` (its default).
+  **No login exists or is needed** (localhost trust, builtin `local` user); billing/usage/metrics
+  return clear "cloud-only" errors — don't retry them.
+
+## Intent-based routing
+
+Route by intent before running preflight ceremony:
+
+**"Ship / deploy this app" (from zero):** don't interrogate state first — run the chain and
+announce it: `insta status` (logged in? linked?) → if unauthenticated on cloud, `insta login` → if
+unlinked, `insta project create <dir-name>` → `insta services add postgres db` (if the app needs a
+DB) + `insta services add compute app` → `insta secrets` → `insta deploy . --port <the port the
+app listens on>` → **verify the printed URL serves** (below). The app reads `process.env` creds.
+
+**"Set up / onboard / sign up":** cloud → `insta login --oauth github` (browser) or
+`--email/--password`; then `insta project create`. Local/oss → nothing to set up beyond the daemon.
+
+**A unit of work on an existing project (feature, fix, experiment, agent task):** one branch per
+unit of work — see the core principle below and **[branching.md](references/branching.md)**.
+Never develop on `main`.
+
+**Anything else (configure, debug, inspect):** light preflight, then the matching reference below.
+
+## Preflight & context (before mutations)
+
+```bash
+command -v insta                 # installed? (else: Install section)
+insta status --json              # target api, login, linked project, current branch
+```
+
+Skip this ceremony for the ship-from-zero chain above — `status` is its first step already.
+
+**Context rules (multi-agent safety):**
+
+- The link (`./.insta/project.json`) is **per directory** and includes the current branch.
+- **Prefer explicit `--branch <name>`** on commands that accept it (`secrets`, `deploy`, `metrics`,
+  `logs`, `events`) over `insta branch switch` when acting on a branch you don't own — `switch`
+  mutates the shared per-directory link and races parallel agents in the same checkout.
+- For parallel agents, the rule is **1:1:1 — task ↔ git worktree ↔ insta branch** (each worktree has
+  its own link, so `switch` is safe there). See [branching.md](references/branching.md).
 
 ## Core principle
 
 **One unit of work = one branch = one isolated environment.** `insta branch create <name>`
-materializes the project's **current services** onto the new branch — for each service the project
-has:
-
-- a **Neon DB branch** (copy-on-write copy of the parent's data, own `DATABASE_URL`) per postgres service,
-- a **copy-on-write storage bucket** (forked from the parent) per storage service, and
-- a **clone of every compute service** — one isolated Fly app + URL each.
-
-These are created **at branch-create** (InstaCloud clones the compute services immediately — not
-"on first deploy"), so a branch is a complete, runnable environment from the start. A project with no
-services yields an empty branch; adding a service later materializes it onto every existing branch.
-Branches run fully in parallel; nothing one does touches another. **A project may have at most 10
-branches (a hard system limit).** **Don't develop on `main`; don't pile multiple features on one
-branch.**
+materializes the project's **current services** onto the new branch — a Neon DB branch (CoW copy of
+the parent's data), a CoW-forked storage bucket, and a clone of every compute service (own URL
+each), created **at branch-create**, so a branch is a complete runnable environment from the start.
+Branches run fully in parallel; nothing one does touches another. **≤10 branches per project (hard
+limit).** Don't develop on `main`; don't pile multiple features on one branch.
 
 **Multiple independent features (or agent tasks) at once?** Give each its own branch **and its own
-subagent** — isolated DB + storage + compute + URLs mean zero collision. This is the recommended way
-to parallelize agent work — see **workflow.md → Running multiple agents in parallel**.
+subagent** — isolated DB + storage + compute + URLs mean zero collision. See
+**[branching.md](references/branching.md) → Parallel agents**.
 
-## Where to go
+## Verify before reporting (deploys)
 
-- **Doing the work** → **workflow.md**: the branch loop, parallel agents (a git worktree + an insta
-  branch each), promoting a branch to main (merge → migrate → redeploy → validate), and the deploy
-  gotchas that bite.
-- **Command lookup** → **cli-reference.md**: the full CLI catalog, deploy, Dockerfile templates, and
-  the govern/observe commands.
+**Never report a deploy as successful from the command exiting alone.** `insta deploy` prints the
+branch URL on success — that means the platform accepted and rolled the machine, not that the app
+serves:
+
+1. Poll the printed URL (`curl -s -o /dev/null -w '%{http_code}'`) every ~3s for up to ~60s.
+   Scale-to-zero branches cold-start on the first request — allow a slow first hit.
+2. `200` (or the app's expected status) → deployed; report the URL.
+3. Still failing → the ordered triage list in [operate.md](references/operate.md) (port mismatch
+   and migration-gated startup account for most failures).
+4. Report the exact failing state — never claim success you didn't observe.
+
+## Approval relay (CRITICAL — gated actions)
+
+Sensitive actions are gated at the credential boundary (`secrets.read`, `secrets.write`, `deploy`,
+`project.delete`, `branch.delete`, `service.add/remove/scale/upgrade`; policy per action:
+allow/deny/approve — `project.delete` requires approval by default). When a command returns
+**"approval required" with an approval id**:
+
+- **Relay it to the human immediately and verbatim** — the exact line to run:
+  `insta approvals approve <id>` (add `--always` to also stop future prompts for that action).
+  Don't summarize it away, don't retry the command, and don't report the task as failed without
+  surfacing the approval first. Only an **admin** can approve.
+- Grants are **single-use**: after approval, **re-run the original command**; the next occurrence
+  prompts again unless policy was set to allow (`--always` / `insta policy set <action> allow`).
+- **Never work around a gate** (e.g. by hand-editing state or bypassing the CLI) — the gate is the
+  product's safety model. A `deny` policy is a hard no: report it, don't circumvent it.
+
+## Common quick operations
+
+```bash
+insta status --json                          # target, login, link, current branch
+insta manifest --json                        # agent-legible env view: every branch's services + URLs
+insta services list --json                   # what exists on this project
+insta secrets --print                        # credential bundle for the current branch (--branch <b>)
+insta secrets set NAME value                 # user config (project-wide; --branch for overrides)
+insta deploy . --port 8080                   # build (Dockerfile) + deploy to the current branch
+insta deploy --image <ref> --port 8080       # prebuilt image instead
+insta branch create feat && insta branch list --json
+insta logs compute --limit 100 --json        # runtime logs (--branch <b>; db is provider-limited)
+insta metrics compute --json                 # service metrics
+insta events --limit 50 --json               # audit + agent-event timeline
+insta usage --json                           # cloud only (insta billing --json likewise)
+insta approvals list --status pending        # outstanding gates
+```
+
+Use `--json` wherever you parse output.
+
+## Routing
+
+For anything beyond the quick operations, load the reference that matches the intent — one is
+usually enough, two at most:
+
+| Intent | Reference | Covers |
+| --- | --- | --- |
+| Create or connect things ("set up", "new project", "add a database/compute") | [setup.md](references/setup.md) | CLI install/upgrade, cloud vs oss target, auth, project, services, ship-from-zero |
+| Ship code or manage releases | [deploy.md](references/deploy.md) | image vs source (remote build), `--port` semantics, secrets at runtime, verify procedure, Dockerfile templates, custom domains |
+| Branch environments, parallel agents, promotion ("preview env", "sandbox per task", "merge to main") | [branching.md](references/branching.md) | **the data-forking env model** (what actually clones), branch loop, 1:1:1 worktree pattern + dispatch brief, promotion, migration discipline |
+| Approvals, policy, audit, credential scanning | [governance.md](references/governance.md) | gates catalog, the approval relay, events timeline, observe hook, agent audit patterns |
+| Check health or debug failures | [operate.md](references/operate.md) | status/manifest triage, ordered deploy-failure list, metrics/logs, cloud-vs-oss differences |
+| Command lookup | [cli-reference.md](cli-reference.md) | the full CLI catalog with flags and gates |
+
+If a request spans two areas ("deploy and check it's healthy"), load both and answer once.
 
 ## Two non-negotiables (wherever you are)
 
@@ -72,27 +186,15 @@ to parallelize agent work — see **workflow.md → Running multiple agents in p
 
 ## Governance & audit (this is the platform's core differentiator)
 
-Sensitive actions are gated at the credential boundary: `secrets.read`, `secrets.write`, `deploy`,
-`project.delete`, `branch.delete`, and the service mutations `service.add` / `service.remove` / `service.scale` /
-`service.upgrade`. Each has a per-project policy of `allow` / `deny` / `approve`.
+The gate mechanics and the relay procedure are above; the observe credential-audit hook, the events
+timeline, and agent audit patterns are in [governance.md](references/governance.md).
 
-- **`project.delete` requires approval by default.** A gated action returns *"approval required"*
-  with an approval id; an **admin** runs `insta approvals approve <id>`, then you **re-run** the
-  action (grants are single-use). `insta policy set <action> <decision>` changes the policy.
-- The **`insta observe`** hook (auto-installed on `project create`/`link`) scans your agent tool-use
-  for credential exposure into `./.insta/audit.jsonl`. `insta observe report` reviews it locally;
-  `insta observe sync` uploads findings into the project's audit timeline (`insta events`).
+**Scaling & billing (cloud, paid plans):** `insta services scale/upgrade` (free plans get 403 —
+`insta billing upgrade` first); `insta usage` / `insta billing` show cycle usage and cost. One free
+org per user. Full flags in [cli-reference.md](cli-reference.md).
 
-**Scaling (paid plans only):** `insta services scale compute <name> <number> [region]` sets a compute
-service's machine count; `insta services upgrade <compute|postgres> <name> <spec>` raises its spec
-(compute guest / postgres CU ceiling; up-only). New services start at the provider **minimum** spec.
-**Free-plan projects cannot scale or upgrade** (403) — upgrade the org first (`insta billing upgrade`).
+## Response format
 
-**Observability:** `insta metrics <db|compute> [group]` and `insta logs <db|compute> [group]` show
-service metrics + runtime logs. Compute (Fly) is fully served; DB (Neon) has no realtime metrics/logs
-API, so `db` returns a provider-limitation note.
-
-**Usage & billing:** `insta usage` aggregates service usage by meter (with `costUsd`); `insta billing`
-shows the current cycle (tier / included credit / used / overage). `insta billing upgrade <pro|enterprise>`
-and `insta billing portal` open Stripe in a browser (interactive). **A user may own only one free org**
-— to create another org, upgrade an existing one to a paid tier first. See `cli-reference.md`.
+For operational work, report: **what was done** (action + scope: project/branch/service), **the
+result** (URLs, IDs, observed status — not assumed), and **what's next** (or that it's complete).
+Include command output only where it helps.
