@@ -143,6 +143,7 @@ allow/deny/approve — `project.delete` requires approval by default). When a co
 insta status --json                          # target, login, link, current branch
 insta manifest --json                        # agent-legible env view: every branch's services + URLs
 insta services list --json                   # what exists on this project
+insta run -- <cmd>                           # run with the branch bundle injected (NOTHING on disk; --branch <b>)
 insta secrets --print                        # credential bundle for the current branch (--branch <b>)
 insta secrets set NAME value                 # user config (project-wide; --branch for overrides)
 insta deploy . --port 8080                   # build (Dockerfile) + deploy to the current branch
@@ -175,7 +176,10 @@ If a request spans two areas ("deploy and check it's healthy"), load both and an
 
 ## Two non-negotiables (wherever you are)
 
-- Treat `./.env` (from `insta secrets`) as the **only** credential source — never hardcode or print
+- **Prefer `insta run -- <cmd>`** — the bundle is fetched per invocation and injected into the
+  child environment only; nothing is written to disk, so nothing can leak or be committed.
+- When a file is genuinely needed, treat `./.env` (from `insta secrets`; auto-gitignored in git
+  repos) as the **only** credential source — never hardcode or print
   secret values. `DATABASE_URL` + compute + storage (`AWS_*` / `BUCKET_NAME`) are all **per-branch**
   (each branch copy-on-write-forks its parent's bucket; a legacy bucket created without snapshots
   stays **shared** — no isolation). User-set config belongs in `insta secrets set <NAME>`

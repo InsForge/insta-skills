@@ -5,8 +5,12 @@ From zero to a linked project — CLI install, target selection, auth, project +
 ## Install / upgrade the CLI
 
 ```bash
+# agent one-liner — CLI + the insta skill for every coding agent on the machine (preferred):
+curl -fsSL https://raw.githubusercontent.com/InsForge/insta-cli/main/agents.sh | sh
+# CLI only:
 curl -fsSL https://raw.githubusercontent.com/InsForge/insta-cli/main/install.sh | sh  # native binary, no Node
 npm install -g insta            # npm alternative · one-shot: npx insta@latest <cmd>
+insta setup agent               # add the agent skills later (user-global, all agents)
 insta upgrade                   # self-update (auto-update is on by default pre-1.0)
 insta autoupdate off            # opt out of auto-update
 ```
@@ -34,9 +38,16 @@ Misbehaving or unrecognized command → update first (re-run the installer — i
 
 ## Project
 
+Linking is OPTIONAL (CLI ≥ 0.0.10): the first project-scoped command in an unlinked directory
+auto-resolves — one project on the account is picked silently, several give a one-keystroke
+picker — and persists to `./.insta/project.json` (commit it: teammates + CI inherit the binding,
+and it resolves from any subdirectory, git-style). Resolution order:
+`--project/--branch flags > INSTA_PROJECT_ID / INSTA_BRANCH / INSTA_ORG_ID env > link file (walk-up) > auto-resolve`.
+Use env for CI/one-offs with no state; use `project link` only to pin a specific project.
+
 ```bash
 insta project create <name> [--org <id>]   # creates an EMPTY project (cloud) and links this dir
-insta project link <id>                    # link an existing project instead
+insta project link <id>                    # pin a specific project explicitly (optional)
 insta project list --org <id> --json
 ```
 
