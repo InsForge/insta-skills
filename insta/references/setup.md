@@ -6,7 +6,7 @@ From zero to a linked project — CLI install, target selection, auth, project +
 
 ```bash
 # agent one-liner — CLI + the insta skill for every coding agent on the machine (preferred):
-curl -fsSL https://raw.githubusercontent.com/InsForge/insta-cli/main/agents.sh | sh
+curl -fsSL agents.instacloud.com | sh
 # CLI only:
 curl -fsSL https://raw.githubusercontent.com/InsForge/insta-cli/main/install.sh | sh  # native binary, no Node
 npm install -g insta            # npm alternative · one-shot: npx insta@latest <cmd>
