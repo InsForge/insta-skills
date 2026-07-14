@@ -24,6 +24,22 @@ insta metrics db · insta logs db      # provider-limited: returns a note, not s
 insta-oss: metrics/logs return a clear "cloud-only / coming" 501 today — use `docker logs`/`docker
 stats` on the branch's containers directly if you must, and don't retry the CLI command.
 
+## Pausing & resuming compute
+
+Compute auto-suspends when idle and auto-wakes on the next request. To take a service **offline on
+purpose** — a maintenance window, cost control, or parking a preview branch — use the lifecycle
+controls, which are a *persistent* override: a stopped/suspended service will **not** be re-woken by
+incoming traffic.
+
+- `insta compute stop [service]` — clean shutdown; stays down until `start`.
+- `insta compute suspend [service]` — snapshot RAM for a faster resume; stays down until `start`.
+- `insta compute start [service]` — bring it back online and re-enable auto-wake.
+- `insta compute status [service]` — desired (your intent) vs. live runtime state.
+
+`[service]` is optional when the project has exactly one compute service. These work on all plans and
+require no approval. A billing suspension is separate: you can't `start` while an org is billing-
+suspended, and a manual `stop` is preserved across a billing pause/resume cycle.
+
 ## Deploy triage (URL not serving after deploy)
 
 Work the list in order — these cover ~all real failures seen so far:
