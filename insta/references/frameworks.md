@@ -9,8 +9,10 @@ Every recipe below encodes these. If you hand-write a Dockerfile, get all four r
 
 1. **Bind `::` (dual-stack), never `0.0.0.0`-only or `127.0.0.1`.** InstaCloud's router and private
    network are **IPv6**. An app listening only on IPv4 boots "successfully" and then every request
-   404s/502s forever. Node's `server.listen(port, '::')`; Next standalone: set `HOSTNAME=0.0.0.0`
-   (its server binds dual-stack from that) — or `HOSTNAME=::`.
+   404s/502s forever. Node's `server.listen(port, '::')`. Next's standalone server does
+   `server.listen(port, process.env.HOSTNAME || '0.0.0.0')`, and `0.0.0.0` binds **IPv4-only** —
+   so set **`HOSTNAME=::`** (verified: binds dual-stack). `0.0.0.0` happens to work on Fly's
+   IPv4-reachable proxy but fails on IPv6-only networks like Railway — `::` is safe on both.
 2. **`EXPOSE <port>` in the Dockerfile.** `insta deploy` derives `--port` from the last `EXPOSE`;
    without it the service wires to 8080 and refuses every request. Keep `EXPOSE` == the listen port.
 3. **`PORT` env == the exposed port.** Read `process.env.PORT` and default it to the same number you
@@ -41,7 +43,7 @@ COPY . .
 RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
-ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
+ENV NODE_ENV=production PORT=3000 HOSTNAME=::
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
