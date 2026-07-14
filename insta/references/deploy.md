@@ -71,20 +71,11 @@ insta compute check-domain app.example.com                    # status once DNS 
 Cert + routing are handled for you; the DNS records live in **your** registrar (CNAME for a
 subdomain, A/AAAA for an apex, + a validation CNAME).
 
-## Dockerfile templates
+## Dockerfile templates → use the framework recipes
 
-**Backend** (reads creds from env, listens on `--port`):
-```dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --omit=dev
-COPY . .
-EXPOSE 8080
-CMD ["node", "server.js"]   # reads process.env.DATABASE_URL etc.
-```
-
-**Full-stack:** ship frontend + backend as **one container, one port** — the backend serves the
-built frontend. One deploy, one URL, same-origin calls.
-**Separate SPA:** build static assets, serve from a tiny static-server container (e.g. caddy) with
-unknown paths rewritten to `index.html`; deploy as its own compute service.
+**Before hand-writing a Dockerfile, copy the recipe for your framework: [frameworks.md](frameworks.md).**
+Next.js, Node/Express, Vite/SPA, and FastAPI each have a paste-and-deploy recipe with the four
+first-deploy traps already solved (bind `::` not IPv4-only; `EXPOSE` == listen port so `--port`
+auto-derives; `PORT` env matches; multi-stage build). Skipping this is why a first deploy boots
+"fine" yet refuses every request. Full-stack = one container/one port (backend serves the built
+frontend); separate SPA = its own tiny static-server compute service.
