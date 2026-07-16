@@ -4,6 +4,12 @@
 copy of the whole environment — *including the database's data and the bucket's objects* — created
 in seconds. Use it as the default unit of ALL work. Never develop on `main`.
 
+**Services are branch-owned, not project-wide.** Each branch has its own service catalog —
+`insta services add/list/remove` all default to the **current** branch, and a service added on one
+branch does **not** appear on any other branch, including its parent. `insta branch create` **forks**
+the parent's current services at creation time (below); after that, the two branches' catalogs
+diverge independently — adding, removing, or scaling a service on one has no effect on the other.
+
 ## What `insta branch create <name>` actually clones
 
 | Resource | Mechanism | What the clone contains |
@@ -68,6 +74,21 @@ schema travels as migration **files**:
 **Discipline that makes this work:** every schema change is a file under `migrations/` — it must
 replay on a branch DB and again on main. Ad-hoc `psql` schema edits on a branch are lost at
 promotion.
+
+## Promote a service to main
+
+Code promotion above doesn't create services — if `feat-x` added one `main` never had (a new
+compute group, a storage bucket for a feature about to ship), bring it over **structurally** first:
+
+```bash
+insta branch merge feat-x --into main     # or: insta branch switch main && insta branch merge feat-x
+```
+
+This creates, on `main`, every service `feat-x` has that `main` doesn't — **fresh and empty; no data
+is copied** (same rule as code promotion: databases are never merged). Services `main` already has
+are skipped (reason `exists` / `cap` / `secret-collision`, printed per service). It's additive only —
+nothing on `main` is ever deleted, and re-running it is a no-op for services already merged. Deploy
+and seed the newly-created service on `main` same as any other.
 
 ## Branch data is disposable by design
 

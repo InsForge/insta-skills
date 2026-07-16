@@ -98,9 +98,10 @@ Skip this ceremony for the ship-from-zero chain above — `status` is its first 
 ## Core principle
 
 **One unit of work = one branch = one isolated environment.** `insta branch create <name>`
-materializes the project's **current services** onto the new branch — a Neon DB branch (CoW copy of
-the parent's data), a CoW-forked storage bucket, and a clone of every compute service (own URL
-each), created **at branch-create**, so a branch is a complete runnable environment from the start.
+materializes the **parent branch's** current services onto the new branch — a Neon DB branch (CoW
+copy of the parent's data), a CoW-forked storage bucket, and a clone of every compute service (own
+URL each), created **at branch-create**, so a branch is a complete runnable environment from the
+start.
 Branches run fully in parallel; nothing one does touches another. **≤10 branches per project (hard
 limit).** Don't develop on `main`; don't pile multiple features on one branch.
 
