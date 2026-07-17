@@ -32,11 +32,16 @@ and on first `/mcp` use Claude discovers the platform's authorization server (RF
 Auth MCP plugin, dynamic client registration) and runs the browser flow — managed, expiring,
 revocable tokens, nothing static on disk.
 
+Setup also writes an OAuth (URL-only) entry into the config of **every other detected
+MCP-capable agent** — Cursor, OpenAI Codex, OpenCode, GitHub Copilot, Factory Droid — and
+`insta mcp install --agent <slug>` targets one explicitly. Merges never clobber existing config
+entries.
+
 **Headless machines / CI** (no browser): `insta setup agent --mcp-token` instead mints a durable
-`insta_` API token named `mcp-<hostname>` (needs `insta login` first) and registers with an
-`Authorization: Bearer` header. Manual setup for other clients works the same way: OAuth if the
-client supports MCP OAuth discovery, else a Bearer header with any `insta_` API token.
-`INSTA_MCP_URL` points setup at a different deployment (beta/self-host).
+`insta_` API token named `mcp-<hostname>` (needs `insta login` first) and registers Claude Code
+with an `Authorization: Bearer` header. Manual setup for any other client works the same way:
+OAuth if the client supports MCP OAuth discovery, else a Bearer header with any `insta_` API
+token. `INSTA_MCP_URL` points setup at a different deployment (beta/self-host).
 
 New/renamed tools need a **fresh agent session** to appear — reconnecting an existing session
 won't pick them up.

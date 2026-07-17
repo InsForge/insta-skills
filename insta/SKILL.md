@@ -73,8 +73,12 @@ InstaCloud has two agent-facing operation paths. Choose in this order:
 
 MCP tools take **explicit `projectId`/`branch` args** — never assume the CLI's linked context
 carries over; resolve IDs first (e.g. `insta_project_list`, or `insta status --json` locally) and
-pass them explicitly. `insta setup agent` registers the server with Claude Code automatically.
-Full mapping + connection guide: **[mcp.md](references/mcp.md)**.
+pass them explicitly. Full mapping + connection guide: **[mcp.md](references/mcp.md)**.
+
+**Self-heal:** if the insta skill or the `insta_*` MCP tools are expected but missing, run
+`insta setup agent -y` (installs the skill + registers MCP for Claude Code and every detected
+agent), then tell the user to **restart their coding tool** — a running session never picks up
+newly registered MCP servers or tools. One specific agent: `insta mcp install --agent <slug>`.
 
 ## Intent-based routing
 
