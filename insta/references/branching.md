@@ -10,6 +10,15 @@ branch does **not** appear on any other branch, including its parent. `insta bra
 the parent's current services at creation time (below); after that, the two branches' catalogs
 diverge independently — adding, removing, or scaling a service on one has no effect on the other.
 
+**Secrets belong to services.** The full view is `project → branch → service → secrets`
+(`insta secrets tree`; a branch's slice is `insta secrets list`). Provider-minted credentials
+(`DATABASE_URL_<NAME>`, `BUCKET_NAME_<NAME>`, …) are already bound to the service that produced
+them; you can bind your own with `insta secrets set <NAME> --service <type/name>` (binding requires
+a branch — it defaults to the current one). Binding is **metadata only**: the secret's name/value
+and the `.env` bundle are unchanged, it just records which service the secret belongs to for
+visibility and lifecycle — and **removing a service deletes the secrets bound to it** (unbound and
+project-wide secrets are untouched).
+
 ## What `insta branch create <name>` actually clones
 
 | Resource | Mechanism | What the clone contains |

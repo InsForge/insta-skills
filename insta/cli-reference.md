@@ -15,6 +15,7 @@ branching, governance, operate, mcp.
 | `insta project delete` | tear down ALL resources + unlink (gated: `project.delete`, approval by default) |
 | `insta services add <postgres\|storage\|compute> <name>` [`--branch <b>`] | provision a service **on a branch** (default: current/linked branch) — services are **branch-scoped**: adding one on a branch does not add it to any other branch; postgres/compute get a default access domain (gated: `service.add`) |
 | `insta services list` [`--json`] [`--branch <b>`] · `insta services remove <type> <name>` [`--branch <b>`] | list / remove a branch's services (default: current branch; remove gated: `service.remove`) |
+| `insta services secrets <type> <name>` [`--branch <b>`] [`--json`] | secret **names** bound to one service (e.g. `insta services secrets postgres db`) — default: current branch |
 | `insta services scale compute <name> <number>` [`region`] | set compute machine count — **paid plans only** (free → 403); gated: `service.scale` |
 | `insta services upgrade <compute\|postgres> <name> <spec>` | raise spec (up-only) — **paid plans only**; gated: `service.upgrade`. compute: `1vcpu-256mb`→`2vcpu-2gb`; postgres: `pg-0.25cu`→`pg-4cu` |
 | `insta branch create <name>` [`--from <parent>`] | isolated env: **forks the parent branch's current services** — a Neon branch per postgres, a CoW-forked bucket per storage (snapshot-enabled projects), a clone of every compute service — then the two branches' service catalogs diverge independently (services are **branch-owned, not project-wide**). **≤10 branches/project.** Does NOT switch |
@@ -22,8 +23,9 @@ branching, governance, operate, mcp.
 | `insta branch merge <source>` [`--into <target>`] | **structural** merge: creates on the target branch (default: current) every service present on `<source>` but missing there — fresh & **empty, no data copied**. Services the target already has are skipped (reason: `exists`\|`cap`\|`secret-collision`). Additive only — never deletes target services; idempotent |
 | `insta branch delete <name>` | tear down the branch's resources (gated: `branch.delete`) |
 | `insta secrets` [`--branch <name>`] [`-o <file>`] [`--print`] [`--json`] | secret seam → write creds to `./.env` (gated: `secrets.read`) |
-| `insta secrets list` [`--branch`] | list secret names only |
-| `insta secrets set <NAME> [value] [--branch <b>]` | Set a user secret (project-wide by default; value from stdin if omitted) |
+| `insta secrets list` [`--branch <b>`] [`--json`] | secret names for the branch, **grouped by service** — each service's bound secrets, plus a branch-level "unbound" group and a project-wide group |
+| `insta secrets tree` [`--json`] | the whole project as `project → branch → service → secrets` (names only) |
+| `insta secrets set <NAME> [value] [--branch <b>] [--service <type/name>]` | Set a user secret (project-wide by default; value from stdin if omitted). `--service` binds it to that branch's service (e.g. `postgres/db`) — binding **requires a branch** (defaults to the current branch when `--service` is given); omit `--service` for an unbound secret (as before) |
 | `insta secrets unset <NAME> [--branch <b>]`       | Remove a user secret |
 | `insta deploy <dir>` / `--image <url>` [`--branch <b>`] [`--group <g>`] [`--port <n>`] | deploy to a compute service — a **source dir** (needs a `Dockerfile`; built remotely on Fly, no local Docker) or a **prebuilt image**. Defaults to the branch's sole compute service; `--group` picks by name (gated: `deploy`) |
 | `insta compute set-domain <host>` / `check-domain <host>` / `remove-domain <host>` [`--branch --group --json`] | attach / check / detach a **developer-owned custom domain** on a compute service — Fly issues the cert + routes; prints the DNS records to set in **your own** registrar (set/remove gated: `deploy`) |
@@ -52,7 +54,10 @@ the plain unsuffixed names, so single-service projects are unaffected.
 `insta secrets set <NAME>` / `unset <NAME>` manage **user-defined** secrets — reserved names
 (`DATABASE_URL`, `AWS_*`, `BUCKET_NAME`, and any other live minted credential name) are rejected to
 avoid clobbering platform-managed credentials. Gated: `secrets.write`. Changes apply on the next
-`insta secrets` fetch or the next deploy — no hot reload.
+`insta secrets` fetch or the next deploy — no hot reload. `--service` binding is **metadata only** —
+it records which service a secret belongs to but never changes the secret's name/value or the
+`.env` bundle. `secrets list`, `secrets tree`, and `services secrets` are all **names only**; secret
+**values** still come exclusively from `insta secrets` → `.env`.
 
 ## Deploy
 
