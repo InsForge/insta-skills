@@ -1,7 +1,7 @@
 # InstaCloud CLI reference
 
 Command catalog with flags and gates. Task guidance lives in `references/` — setup, deploy,
-branching, governance, operate.
+branching, governance, operate, mcp.
 
 ## Commands
 
@@ -39,6 +39,7 @@ branching, governance, operate.
 | `insta approvals list` [`--status`] · `insta approvals approve <id>` [`--always`] · `insta approvals deny <id>` | manage gated actions |
 | `insta observe install` · `report` [`--json`] · `sync` | local credential-audit hook (see below) |
 | `insta upgrade` · `insta autoupdate [on\|off]` | self-update the CLI (binary re-runs the installer; npm uses `npm i -g`). Auto-update is **on by default** pre-1.0; `autoupdate off` / `INSTA_NO_AUTOUPDATE=1` disables. (CLI ≥ 0.0.5) |
+| `insta setup agent` | one-step agent onboarding: installs the insta skill user-globally for every coding agent, then registers the **remote MCP server** with Claude Code (user scope; mints a durable `insta_` token named `mcp-<hostname>` — needs `insta login` first; idempotent; `INSTA_MCP_URL` overrides the URL; skipped when `claude` isn't installed). See [mcp.md](references/mcp.md) |
 
 `DATABASE_URL` + compute + storage (`AWS_*` / `BUCKET_NAME`) are **per-branch** (new projects: each
 branch copy-on-write-forks its parent's bucket; a project created before snapshots keeps a **shared** bucket).

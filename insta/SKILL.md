@@ -58,6 +58,16 @@ The same commands drive both. Resolve which one you're on from `insta status` (`
   **No login exists or is needed** (localhost trust, builtin `local` user); billing/usage/metrics
   return clear "cloud-only" errors — don't retry them.
 
+## MCP tools, when connected
+
+If the **`insta-cloud` MCP server** is connected (you have `insta_*` tools — `insta_whoami`,
+`insta_deploy`, …), **prefer those tools over shelling out** for control-plane operations:
+structured JSON, same governance gates, same audit trail. The CLI stays required for auth
+(`insta login`), pulling secret **values** (`insta secrets` / `insta run`), and source-directory
+deploys (`insta deploy <dir>` — `insta_deploy` is image-only). Tools take **explicit
+`projectId`/`branch` args** (no "current project"). `insta setup agent` registers the server with
+Claude Code automatically. Full mapping + connection guide: **[mcp.md](references/mcp.md)**.
+
 ## Intent-based routing
 
 Route by intent before running preflight ceremony:
@@ -172,6 +182,7 @@ usually enough, two at most:
 | Approvals, policy, audit, credential scanning | [governance.md](references/governance.md) | gates catalog, the approval relay, events timeline, observe hook, agent audit patterns |
 | Check health or debug failures | [operate.md](references/operate.md) | status/manifest triage, ordered deploy-failure list, metrics/logs, cloud-vs-oss differences |
 | Command lookup | [cli-reference.md](cli-reference.md) | the full CLI catalog with flags and gates |
+| Remote MCP tools ("connect a connector", `insta_*` tools available) | [mcp.md](references/mcp.md) | connecting clients, tool ↔ CLI mapping, what stays CLI-only |
 
 If a request spans two areas ("deploy and check it's healthy"), load both and answer once.
 
