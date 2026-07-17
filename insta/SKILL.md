@@ -9,9 +9,10 @@ description: >
   skill when working in an InstaCloud-managed project (a `.insta/` dir or the
   `insta` CLI), when the user mentions InstaCloud or insta, AND when they ask to
   deploy an app, need a database/backend/object storage, want preview or
-  per-agent sandbox environments, or want branchable infrastructure — even if
-  they don't say "InstaCloud" explicitly. Also covers the self-hosted insta-oss
-  runtime (same CLI, local daemon).
+  per-agent sandbox environments, want branchable infrastructure, or mention
+  agent setup or MCP — even if they don't say "InstaCloud" explicitly. Also
+  covers the insta-cloud remote MCP server (insta_* tools) and the self-hosted
+  insta-oss runtime (same CLI, local daemon).
 allowed-tools: Bash(insta:*), Bash(npx:*), Bash(curl:*), Bash(command:*), Bash(git:*), Bash(npm:*)
 ---
 
@@ -57,6 +58,27 @@ The same commands drive both. Resolve which one you're on from `insta status` (`
 - **insta-oss (self-hosted local daemon)** — `INSTA_API_URL=http://127.0.0.1:8080` (its default).
   **No login exists or is needed** (localhost trust, builtin `local` user); billing/usage/metrics
   return clear "cloud-only" errors — don't retry them.
+
+## Tool routing: MCP vs CLI
+
+InstaCloud has two agent-facing operation paths. Choose in this order:
+
+1. **CLI** for anything that needs local machine state: auth (`insta login`), pulling secret
+   **values** (`insta secrets` / `insta run`), source-directory deploys (`insta deploy <dir>`),
+   the observe hook, and repo-linked context (`.insta/project.json`).
+2. **Remote MCP** (`insta_*` tools, when connected) as the default for platform-scoped
+   operations that don't need local files: discovery, services, branches, image deploys,
+   metrics/logs/usage, governance. Structured JSON, same governance gates, same audit trail.
+3. No MCP connected → the CLI covers everything.
+
+MCP tools take **explicit `projectId`/`branch` args** — never assume the CLI's linked context
+carries over; resolve IDs first (e.g. `insta_project_list`, or `insta status --json` locally) and
+pass them explicitly. Full mapping + connection guide: **[mcp.md](references/mcp.md)**.
+
+**Self-heal:** if the insta skill or the `insta_*` MCP tools are expected but missing, run
+`insta setup agent -y` (installs the skill + registers MCP for Claude Code and every detected
+agent), then tell the user to **restart their coding tool** — a running session never picks up
+newly registered MCP servers or tools. One specific agent: `insta mcp install --agent <slug>`.
 
 ## Intent-based routing
 
@@ -172,6 +194,7 @@ usually enough, two at most:
 | Approvals, policy, audit, credential scanning | [governance.md](references/governance.md) | gates catalog, the approval relay, events timeline, observe hook, agent audit patterns |
 | Check health or debug failures | [operate.md](references/operate.md) | status/manifest triage, ordered deploy-failure list, metrics/logs, cloud-vs-oss differences |
 | Command lookup | [cli-reference.md](cli-reference.md) | the full CLI catalog with flags and gates |
+| Remote MCP tools ("connect a connector", `insta_*` tools available) | [mcp.md](references/mcp.md) | connecting clients, tool ↔ CLI mapping, what stays CLI-only |
 
 If a request spans two areas ("deploy and check it's healthy"), load both and answer once.
 
