@@ -21,19 +21,21 @@ concerns, and hosted agents (Claude.ai / ChatGPT) that have no shell can still o
 
 ## Connecting
 
-`insta setup agent` registers the server with Claude Code automatically (user scope) when the CLI
-is logged in — it mints a durable `insta_` API token named `mcp-<hostname>` and runs the
-equivalent of:
+`insta setup agent` registers the server with Claude Code automatically (user scope). The default
+is **OAuth — no credential is written**: registration is just
 
 ```bash
-claude mcp add --transport http --scope user insta-cloud \
-  https://mcp.instacloud.com/mcp \
-  --header "Authorization: Bearer <insta_… token>"
+claude mcp add --transport http --scope user insta-cloud https://mcp.instacloud.com/mcp
 ```
 
-Manual setup for other clients: POST `/mcp` with an `Authorization: Bearer` header carrying any
-`insta_` API token (dashboard → tokens, or the platform `POST /tokens` route). OAuth 2.1 one-click
-connect (no pre-minted token) is advertised via RFC 9728 metadata for clients that support it.
+and on first `/mcp` use Claude discovers the platform's authorization server (RFC 9728 → Better
+Auth MCP plugin, dynamic client registration) and runs the browser flow — managed, expiring,
+revocable tokens, nothing static on disk.
+
+**Headless machines / CI** (no browser): `insta setup agent --mcp-token` instead mints a durable
+`insta_` API token named `mcp-<hostname>` (needs `insta login` first) and registers with an
+`Authorization: Bearer` header. Manual setup for other clients works the same way: OAuth if the
+client supports MCP OAuth discovery, else a Bearer header with any `insta_` API token.
 `INSTA_MCP_URL` points setup at a different deployment (beta/self-host).
 
 New/renamed tools need a **fresh agent session** to appear — reconnecting an existing session

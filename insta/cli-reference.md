@@ -39,7 +39,7 @@ branching, governance, operate, mcp.
 | `insta approvals list` [`--status`] · `insta approvals approve <id>` [`--always`] · `insta approvals deny <id>` | manage gated actions |
 | `insta observe install` · `report` [`--json`] · `sync` | local credential-audit hook (see below) |
 | `insta upgrade` · `insta autoupdate [on\|off]` | self-update the CLI (binary re-runs the installer; npm uses `npm i -g`). Auto-update is **on by default** pre-1.0; `autoupdate off` / `INSTA_NO_AUTOUPDATE=1` disables. (CLI ≥ 0.0.5) |
-| `insta setup agent` | one-step agent onboarding: installs the insta skill user-globally for every coding agent, then registers the **remote MCP server** with Claude Code (user scope; mints a durable `insta_` token named `mcp-<hostname>` — needs `insta login` first; idempotent; `INSTA_MCP_URL` overrides the URL; skipped when `claude` isn't installed). See [mcp.md](references/mcp.md) |
+| `insta setup agent` [`--mcp-token`] | one-step agent onboarding: installs the insta skill user-globally for every coding agent, then registers the **remote MCP server** with Claude Code (user scope). Default = **OAuth**, no credential written (browser auth on first `/mcp` use); `--mcp-token` = headless fallback that mints a durable `insta_` token named `mcp-<hostname>` (needs `insta login`). Idempotent; `INSTA_MCP_URL` overrides the URL; skipped when `claude` isn't installed. See [mcp.md](references/mcp.md) |
 
 `DATABASE_URL` + compute + storage (`AWS_*` / `BUCKET_NAME`) are **per-branch** (new projects: each
 branch copy-on-write-forks its parent's bucket; a project created before snapshots keeps a **shared** bucket).
