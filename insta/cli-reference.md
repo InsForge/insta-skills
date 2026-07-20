@@ -13,7 +13,8 @@ branching, governance, operate, mcp.
 | `insta project create <name>` [`--org <id>`] | create an **empty** project (no services), link this dir |
 | `insta project list` [`--org`] [`--json`] · `insta project link <id>` | list / link existing |
 | `insta project delete` | tear down ALL resources + unlink (gated: `project.delete`, approval by default) |
-| `insta services add <postgres\|storage\|compute> <name>` [`--branch <b>`] | provision a service **on a branch** (default: current/linked branch) — services are **branch-scoped**: adding one on a branch does not add it to any other branch; postgres/compute get a default access domain (gated: `service.add`) |
+| `insta services add <postgres\|storage\|compute> <name>` [`--branch <b>`] [`--region <r>`] | provision a service **on a branch** (default: current/linked branch) — services are **branch-scoped**: adding one on a branch does not add it to any other branch; postgres/compute get a default access domain (gated: `service.add`) |
+| `insta regions` [`--json`] | list regions available for postgres/compute services |
 | `insta services list` [`--json`] [`--branch <b>`] · `insta services remove <type> <name>` [`--branch <b>`] | list / remove a branch's services (default: current branch; remove gated: `service.remove`) |
 | `insta services secrets <type> <name>` [`--branch <b>`] [`--json`] | secret **names** bound to one service (e.g. `insta services secrets postgres db`) — default: current branch |
 | `insta services scale compute <name> <number>` [`region`] | set compute machine count — **paid plans only** (free → 403); gated: `service.scale` |
