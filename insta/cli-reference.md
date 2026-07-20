@@ -13,10 +13,11 @@ branching, governance, operate, mcp.
 | `insta project create <name>` [`--org <id>`] | create an **empty** project (no services), link this dir |
 | `insta project list` [`--org`] [`--json`] · `insta project link <id>` | list / link existing |
 | `insta project delete` | tear down ALL resources + unlink (gated: `project.delete`, approval by default) |
-| `insta services add <postgres\|storage\|compute> <name>` [`--branch <b>`] | provision a service **on a branch** (default: current/linked branch) — services are **branch-scoped**: adding one on a branch does not add it to any other branch; postgres/compute get a default access domain (gated: `service.add`) |
+| `insta services add <postgres\|storage\|compute> <name>` [`--branch <b>`] [`--region <r>`] | provision a service **on a branch** (default: current/linked branch) — services are **branch-scoped**: adding one on a branch does not add it to any other branch; postgres/compute get a default access domain (gated: `service.add`) |
+| `insta regions` [`--json`] | list regions available for postgres/compute services |
 | `insta services list` [`--json`] [`--branch <b>`] · `insta services remove <type> <name>` [`--branch <b>`] | list / remove a branch's services (default: current branch; remove gated: `service.remove`) |
 | `insta services secrets <type> <name>` [`--branch <b>`] [`--json`] | secret **names** bound to one service (e.g. `insta services secrets postgres db`) — default: current branch |
-| `insta services scale compute <name> <number>` [`region`] | set compute machine count — **paid plans only** (free → 403); gated: `service.scale` |
+| `insta services scale compute <name> <number>` [`region`] | set compute machine count — **paid plans only** (free → 403); gated: `service.scale`. `region` is an InstaCloud slug (e.g. `us-east`; see `insta regions`), **not** a raw Fly code |
 | `insta services upgrade <compute\|postgres> <name> <spec>` | raise spec (up-only) — **paid plans only**; gated: `service.upgrade`. compute: `1vcpu-256mb`→`2vcpu-2gb`; postgres: `pg-0.25cu`→`pg-4cu` |
 | `insta branch create <name>` [`--from <parent>`] | isolated env: **forks the parent branch's current services** — a Neon branch per postgres, a CoW-forked bucket per storage (snapshot-enabled projects), a clone of every compute service — then the two branches' service catalogs diverge independently (services are **branch-owned, not project-wide**). **≤10 branches/project.** Does NOT switch |
 | `insta branch switch <name>` · `insta branch list` [`--json`] | set current branch / list |
