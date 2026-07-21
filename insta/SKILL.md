@@ -34,6 +34,8 @@ service types you build **directly** against:
 5 per type). Credentials are named per service: `DATABASE_URL_<NAME>`, `BUCKET_NAME_<NAME>`, …
 (service name upper-snaked); the **oldest** service of each type also gets the plain names
 (`DATABASE_URL`, `BUCKET_NAME`, …), so single-service projects work unchanged.
+Use `insta services rename <type> <name> <new-name>` to rename a service; platform-managed
+credential names are re-keyed to the new suffix.
 
 ## Install & upgrade the CLI
 
