@@ -13,17 +13,20 @@ branching, governance, operate, mcp.
 | `insta project create <name>` [`--org <id>`] | create an **empty** project (no services), link this dir |
 | `insta project list` [`--org`] [`--json`] · `insta project link <id>` | list / link existing |
 | `insta project delete` | tear down ALL resources + unlink (gated: `project.delete`, approval by default) |
-| `insta services add <postgres\|storage\|compute> <name>` [`--branch <b>`] | provision a service **on a branch** (default: current/linked branch) — services are **branch-scoped**: adding one on a branch does not add it to any other branch; postgres/compute get a default access domain (gated: `service.add`) |
+| `insta services add <postgres\|storage\|compute> <name>` [`--branch <b>`] [`--region <r>`] [`--image <url>`] [`--port <n>`] | provision a service **on a branch** (default: current/linked branch) — services are **branch-scoped**: adding one on a branch does not add it to any other branch; postgres/compute get a default access domain (gated: `service.add`). **compute only:** `--image` runs that image immediately at creation (otherwise compute starts as an empty, unreachable app until `insta deploy`); `--port` sets the listening port (default `8080`). The image is **persisted** on the service — shown in `services list`, re-run when the branch is forked, and updated later via `insta deploy --image` |
+| `insta regions` [`--json`] | list regions available for postgres/compute services |
 | `insta services list` [`--json`] [`--branch <b>`] · `insta services rename <type> <name> <new-name>` [`--json`] [`--branch <b>`] · `insta services remove <type> <name>` [`--branch <b>`] | list / rename / remove a branch's services (default: current branch; rename re-keys managed secret names; gated: `service.rename` / `service.remove`) |
-| `insta services scale compute <name> <number>` [`region`] | set compute machine count — **paid plans only** (free → 403); gated: `service.scale` |
+| `insta services secrets <type> <name>` [`--branch <b>`] [`--json`] | secret **names** bound to one service (e.g. `insta services secrets postgres db`) — default: current branch |
+| `insta services scale compute <name> <number>` [`region`] | set compute machine count — **paid plans only** (free → 403); gated: `service.scale`. `region` is an InstaCloud slug (e.g. `us-east`; see `insta regions`), **not** a raw Fly code |
 | `insta services upgrade <compute\|postgres> <name> <spec>` | raise spec (up-only) — **paid plans only**; gated: `service.upgrade`. compute: `1vcpu-256mb`→`2vcpu-2gb`; postgres: `pg-0.25cu`→`pg-4cu` |
-| `insta branch create <name>` [`--from <parent>`] | isolated env: **forks the parent branch's current services** — a Neon branch per postgres, a CoW-forked bucket per storage (snapshot-enabled projects), a clone of every compute service — then the two branches' service catalogs diverge independently (services are **branch-owned, not project-wide**). **≤10 branches/project.** Does NOT switch |
+| `insta branch create <name>` [`--from <parent>`] | isolated env: **forks the parent branch's current services** — a Neon branch per postgres, a CoW-forked bucket per storage (snapshot-enabled projects), a clone of every compute service (re-running the parent's persisted image, if any) — then the two branches' service catalogs diverge independently (services are **branch-owned, not project-wide**). **≤10 branches/project.** Does NOT switch |
 | `insta branch switch <name>` · `insta branch list` [`--json`] | set current branch / list |
 | `insta branch merge <source>` [`--into <target>`] | **structural** merge: creates on the target branch (default: current) every service present on `<source>` but missing there — fresh & **empty, no data copied**. Services the target already has are skipped (reason: `exists`\|`cap`\|`secret-collision`). Additive only — never deletes target services; idempotent |
 | `insta branch delete <name>` | tear down the branch's resources (gated: `branch.delete`) |
 | `insta secrets` [`--branch <name>`] [`-o <file>`] [`--print`] [`--json`] | secret seam → write creds to `./.env` (gated: `secrets.read`) |
-| `insta secrets list` [`--branch`] | list secret names only |
-| `insta secrets set <NAME> [value] [--branch <b>]` | Set a user secret (project-wide by default; value from stdin if omitted) |
+| `insta secrets list` [`--branch <b>`] [`--json`] | secret names for the branch, **grouped by service** — each service's bound secrets, plus a branch-level "unbound" group and a project-wide group |
+| `insta secrets tree` [`--json`] | the whole project as `project → branch → service → secrets` (names only) |
+| `insta secrets set <NAME> [value] [--branch <b>] [--service <type/name>]` | Set a user secret (project-wide by default; value from stdin if omitted). `--service` binds it to that branch's service (e.g. `postgres/db`) — binding **requires a branch** (defaults to the current branch when `--service` is given); omit `--service` for an unbound secret (as before) |
 | `insta secrets unset <NAME> [--branch <b>]`       | Remove a user secret |
 | `insta deploy <dir>` / `--image <url>` [`--branch <b>`] [`--group <g>`] [`--port <n>`] | deploy to a compute service — a **source dir** (needs a `Dockerfile`; built remotely on Fly, no local Docker) or a **prebuilt image**. Defaults to the branch's sole compute service; `--group` picks by name (gated: `deploy`) |
 | `insta compute set-domain <host>` / `check-domain <host>` / `remove-domain <host>` [`--branch --group --json`] | attach / check / detach a **developer-owned custom domain** on a compute service — Fly issues the cert + routes; prints the DNS records to set in **your own** registrar (set/remove gated: `deploy`) |
@@ -35,7 +38,7 @@ branching, governance, operate, mcp.
 | `insta billing` [`--org <id>`] [`--json`] | current cycle summary: tier / included credit / used / overage / status |
 | `insta billing upgrade <pro\|enterprise>` · `insta billing portal` [`--org`] [`--no-open`] [`--json`] | Stripe Checkout to subscribe / Customer Portal to manage (opens a browser; `--no-open` prints the URL) |
 | `insta events` [`--branch <b>`] [`--limit <n>`] [`--json`] | audit + agent-event timeline |
-| `insta policy get` [`--json`] · `insta policy set <action> <decision>` | view / set governance policy (actions include `service.add/remove/rename/scale/upgrade`) |
+| `insta policy get` [`--json`] · `insta policy set <action> <decision>` | view / set governance policy (actions include `service.add/remove/rename/scale/upgrade/setAccess`) |
 | `insta approvals list` [`--status`] · `insta approvals approve <id>` [`--always`] · `insta approvals deny <id>` | manage gated actions |
 | `insta observe install` · `report` [`--json`] · `sync` | local credential-audit hook (see below) |
 | `insta upgrade` · `insta autoupdate [on\|off]` | self-update the CLI (binary re-runs the installer; npm uses `npm i -g`). Auto-update is **on by default** pre-1.0; `autoupdate off` / `INSTA_NO_AUTOUPDATE=1` disables. (CLI ≥ 0.0.5) |
@@ -52,7 +55,10 @@ the plain unsuffixed names, so single-service projects are unaffected.
 `insta secrets set <NAME>` / `unset <NAME>` manage **user-defined** secrets — reserved names
 (`DATABASE_URL`, `AWS_*`, `BUCKET_NAME`, and any other live minted credential name) are rejected to
 avoid clobbering platform-managed credentials. Gated: `secrets.write`. Changes apply on the next
-`insta secrets` fetch or the next deploy — no hot reload.
+`insta secrets` fetch or the next deploy — no hot reload. `--service` binding is **metadata only** —
+it records which service a secret belongs to but never changes the secret's name/value or the
+`.env` bundle. `secrets list`, `secrets tree`, and `services secrets` are all **names only**; secret
+**values** still come exclusively from `insta secrets` → `.env`.
 
 ## Deploy
 
@@ -88,7 +94,8 @@ Moved to [references/deploy.md](references/deploy.md) (backend / full-stack / SP
 ## Govern & observe
 
 - **Policy** gates `secrets.read`, `secrets.write`, `deploy`, `branch.delete`, `project.delete`, and
-  `service.add` / `service.remove` / `service.rename` / `service.scale` / `service.upgrade`. `approve` = require a
+  `service.add` / `service.remove` / `service.rename` / `service.scale` / `service.upgrade` /
+  `service.setAccess`. `approve` = require a
   human: the action returns `approval_required`; an admin runs `insta approvals approve <id>`, then
   you **re-run** it (single-use grant). `project.delete` is gated by default. `--always` on approve
   flips the policy to `allow`.
