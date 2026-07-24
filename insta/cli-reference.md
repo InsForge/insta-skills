@@ -33,7 +33,7 @@ branching, governance, operate, mcp.
 | `insta compute start\|stop\|suspend [service]` · `insta compute status [service]` [`--json`] | control a compute service's lifecycle — **persistent override** of auto scale-to-zero: `stop`/`suspend` take it offline and traffic will **not** wake it until `start`; `status` shows desired vs. live state. All plans; ungated. `[service]` defaults to the project's sole compute service |
 | `insta manifest` [`--json`] | agent-legible env view: each branch's db / storage / compute + URLs |
 | `insta metrics <db\|compute>` [`group`] [`--branch --from --to --step --json`] | service metrics (compute=Fly; db=provider-limited) |
-| `insta logs <db\|compute>` [`group`] [`--branch --limit --region --instance --json`] | runtime logs (compute=Fly; db=provider-limited) |
+| `insta logs <db\|compute>` [`group`] [`--branch --limit --region --instance --deploy --json`] | logs (compute=Fly; db=provider-limited); `--deploy` shows compute **deploy events** (Fly machine lifecycle: created/started/…) instead of runtime logs (compute-only) |
 | `insta usage` [`--from --to --json`] | usage aggregated by meter, with `costUsd` (snapshotted at collection) |
 | `insta billing` [`--org <id>`] [`--json`] | current cycle summary: tier / included credit / used / overage / status |
 | `insta billing upgrade <pro\|enterprise>` · `insta billing portal` [`--org`] [`--no-open`] [`--json`] | Stripe Checkout to subscribe / Customer Portal to manage (opens a browser; `--no-open` prints the URL) |
