@@ -7,6 +7,7 @@ From zero to a linked project — CLI install, target selection, auth, project +
 ```bash
 # agent one-liner — CLI + the insta skill for every coding agent on the machine (preferred):
 curl -fsSL agents.instacloud.com | sh
+curl -fsSL agents.staging.instacloud.com | sh   # same binary, targets staging (see Environments)
 # CLI only:
 curl -fsSL https://raw.githubusercontent.com/InsForge/insta-cli/main/install.sh | sh  # native binary, no Node
 npm install -g insta            # npm alternative · one-shot: npx insta@latest <cmd>
@@ -26,7 +27,12 @@ Misbehaving or unrecognized command → update first (re-run the installer — i
 | auth | required (below) | none — localhost trust, builtin `local` user |
 | daemon | n/a | `git clone InsForge/insta-oss && npm i && npx tsx src/main.ts` (needs Docker) |
 
-`insta status --json` shows which target you're on (`apiUrl`) + login + linked project.
+Managed InstaCloud has two environments — `prod` (default) and `staging` — which are **separate
+deployments** with separate project lists and separate logins. `insta env` shows which one you're
+on; `insta env use <name>` switches (dropping the session, since a token from one is not valid at
+the other). Full table in [cli-reference.md](../cli-reference.md#environments).
+
+`insta status --json` shows which target you're on (`env` + `apiUrl`) + login + linked project.
 
 ## Auth (cloud only)
 

@@ -7,8 +7,9 @@ branching, governance, operate, mcp.
 
 | Command | Purpose |
 |---|---|
-| `insta login --email <e> --password <p>` [`--api-url <url>`] · `insta login --oauth <github\|google>` · `insta logout` | auth (api-url + tokens persist; tokens auto-refresh). `--oauth` opens a browser (loopback capture) — for interactive use; agents use email/password or an API token |
-| `insta status` [`--json`] | login + linked project + current branch |
+| `insta login --email <e> --password <p>` [`--api-url <url>`] [`--env <prod\|staging>`] · `insta login --oauth <github\|google>` · `insta logout` | auth (api-url + tokens persist; tokens auto-refresh). `--oauth` opens a browser (loopback capture) — for interactive use; agents use email/password or an API token. `--env` targets a named deployment (see [Environments](#environments)); `--api-url` wins if both are given |
+| `insta env` [`--json`] · `insta env use <prod\|staging>` | show or switch the deployment environment. **Switching drops the stored session** — prod and staging are separate deployments, so the old token cannot authenticate. See [Environments](#environments) |
+| `insta status` [`--json`] | environment + login + linked project + current branch |
 | `insta org list` [`--json`] · `insta org create <name>` | organizations (**one free org per user** — upgrade an existing org before creating another) |
 | `insta project create <name>` [`--org <id>`] | create an **empty** project (no services), link this dir |
 | `insta project list` [`--org`] [`--json`] · `insta project link <id>` | list / link existing |
@@ -42,7 +43,7 @@ branching, governance, operate, mcp.
 | `insta approvals list` [`--status`] · `insta approvals approve <id>` [`--always`] · `insta approvals deny <id>` | manage gated actions |
 | `insta observe install` · `report` [`--json`] · `sync` | local credential-audit hook (see below) |
 | `insta upgrade` · `insta autoupdate [on\|off]` | self-update the CLI (binary re-runs the installer; npm uses `npm i -g`). Auto-update is **on by default** pre-1.0; `autoupdate off` / `INSTA_NO_AUTOUPDATE=1` disables. (CLI ≥ 0.0.5) |
-| `insta setup agent` [`--mcp-token`] | one-step agent onboarding: installs the insta skill user-globally for every coding agent, then registers the **remote MCP server** — Claude Code via `claude mcp add` (user scope) plus a config-file entry for every other detected MCP-capable agent. Default = **OAuth**, no credential written (browser auth on first `/mcp` use); `--mcp-token` = headless fallback that mints a durable `insta_` token named `mcp-<hostname>` (needs `insta login`; Claude Code only). Idempotent; `INSTA_MCP_URL` overrides the URL. See [mcp.md](references/mcp.md) |
+| `insta setup agent` [`--mcp-token`] | one-step agent onboarding: installs the insta skill user-globally for every coding agent, then registers the **remote MCP server** — Claude Code via `claude mcp add` (user scope) plus a config-file entry for every other detected MCP-capable agent. Default = **OAuth**, no credential written (browser auth on first `/mcp` use); `--mcp-token` = headless fallback that mints a durable `insta_` token named `mcp-<hostname>` (needs `insta login`; Claude Code only). Idempotent; `INSTA_MCP_URL` overrides the URL. The MCP host and its registration name are resolved from the current **environment**, so a staging machine registers `insta-cloud-staging` → `mcp.staging.instacloud.com` (both environments can coexist on one machine). See [mcp.md](references/mcp.md) and [Environments](#environments) |
 | `insta mcp install` [`--agent <claude-code\|cursor\|codex\|opencode\|copilot\|factory-droid>`] [`--mcp-token`] | register the remote MCP server only (no skill install) — default: Claude Code + all detected agents; `--agent` targets one. Config merges never clobber existing entries; restart the tool afterwards |
 
 `DATABASE_URL` + compute + storage (`AWS_*` / `BUCKET_NAME`) are **per-branch** (new projects: each
@@ -59,6 +60,46 @@ avoid clobbering platform-managed credentials. Gated: `secrets.write`. Changes a
 it records which service a secret belongs to but never changes the secret's name/value or the
 `.env` bundle. `secrets list`, `secrets tree`, and `services secrets` are all **names only**; secret
 **values** still come exclusively from `insta secrets` → `.env`.
+
+## Environments
+
+`prod` and `staging` are **separate deployments** — different regions, databases, and auth. A
+session minted by one can never authenticate against the other, so `insta env use` drops the stored
+session and you log in again. Default is `prod`; nothing changes unless you switch.
+
+| Environment | Control plane | MCP server | Registers as |
+|---|---|---|---|
+| `prod` (default) | `api.instacloud.com` (us-east-2) | `mcp.instacloud.com/mcp` | `insta-cloud` |
+| `staging` | `api.staging.instacloud.com` (us-west-1) | `mcp.staging.instacloud.com/mcp` | `insta-cloud-staging` |
+
+Install one-liners (same released binary — only the target control plane differs):
+
+```bash
+curl -fsSL agents.instacloud.com | sh            # production
+curl -fsSL agents.staging.instacloud.com | sh    # staging
+```
+
+```bash
+insta env                      # current environment + its hosts
+insta env use staging          # switch; persisted to ~/.insta/config.json
+insta login --env staging --oauth github
+```
+
+The API and MCP hosts are always resolved **together** from one switch, so the CLI and this
+machine's agents can never end up pointed at different environments.
+
+Resolution order, most specific first:
+
+1. `INSTA_API_URL` — a literal URL; the only way to reach a host no environment name covers
+   (`insta-oss` on localhost, a preview deployment). `INSTA_MCP_URL` does the same for MCP.
+2. `INSTA_ENV` — `prod` | `staging`. An unrecognised value is an **error**, never a silent fallback
+   to prod.
+3. the persisted `apiUrl` in `~/.insta/config.json`.
+4. `prod`.
+
+**Agents:** don't switch environments as a debugging step. If a command fails, check `insta env`
+first — targeting staging when the user meant prod (or vice versa) produces confusing "project not
+found" errors, because the two have entirely separate project lists.
 
 ## Deploy
 
