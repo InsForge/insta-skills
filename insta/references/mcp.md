@@ -41,7 +41,24 @@ entries.
 `insta_` API token named `mcp-<hostname>` (needs `insta login` first) and registers Claude Code
 with an `Authorization: Bearer` header. Manual setup for any other client works the same way:
 OAuth if the client supports MCP OAuth discovery, else a Bearer header with any `insta_` API
-token. `INSTA_MCP_URL` points setup at a different deployment (beta/self-host).
+token.
+
+## Environments
+
+The URL above is production. The MCP host and its **registration name** are resolved from the
+CLI's current environment, so the two can never drift apart:
+
+| Environment | MCP server | Registers as |
+|---|---|---|
+| `prod` (default) | `https://mcp.instacloud.com/mcp` | `insta-cloud` |
+| `staging` | `https://mcp.staging.instacloud.com/mcp` | `insta-cloud-staging` |
+
+The distinct names matter: registration is idempotent by name, so a shared name would leave a
+staging install silently pointed at the prod server. Because the names differ, **both can be
+registered on one machine at once** — check which you're talking to with `insta env`.
+
+`insta env use staging` (or `curl -fsSL agents.staging.instacloud.com | sh`) switches both hosts
+together. `INSTA_MCP_URL` still overrides outright, for a self-hosted or tunnelled server.
 
 New/renamed tools need a **fresh agent session** to appear — reconnecting an existing session
 won't pick them up.
