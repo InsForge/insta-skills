@@ -83,6 +83,16 @@ curl -fsSL agents.instacloud.com | sh            # production
 curl -fsSL agents.staging.instacloud.com | sh    # staging
 ```
 
+> **`agents.staging.instacloud.com` is not live yet** (its DNS/CloudFront ships separately). Until
+> it resolves, use the raw URL, which is exactly what the short host will serve:
+>
+> ```bash
+> curl -fsSL https://raw.githubusercontent.com/InsForge/insta-cli/main/install.sh | sh -s -- --agents --staging -y
+> ```
+>
+> If the environment cannot be applied (a CLI older than `insta env`), the installer **fails with a
+> non-zero exit** rather than silently leaving you on production.
+
 ```bash
 insta env                      # current environment + its hosts
 insta env use staging          # switch; persisted to ~/.insta/config.json
