@@ -3,9 +3,9 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg)](LICENSE)
 
 The `insta` agent skill: what a coding agent needs to know to run cloud infrastructure
-through [InstaCloud](https://github.com/InsForge/insta-cli) — provisioning services, forking
-a whole environment per branch, wiring credentials into an app, passing governance
-approvals, and giving several agents a sandbox each.
+through [InstaCloud](https://github.com/InsForge/insta-cli) — provisioning services,
+deploying apps, forking a whole environment per branch, wiring credentials into an app,
+passing governance approvals, and giving several agents a sandbox each.
 
 Skills are Markdown following the [Agent Skills](https://agentskills.io/) format, so they
 work in Claude Code, Codex, Cursor, OpenCode, Copilot, Gemini CLI, Windsurf and anything
