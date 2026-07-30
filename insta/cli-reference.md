@@ -43,7 +43,7 @@ branching, governance, operate, mcp.
 | `insta approvals list` [`--status`] · `insta approvals approve <id>` [`--always`] · `insta approvals deny <id>` | manage gated actions |
 | `insta observe install` · `report` [`--json`] · `sync` | local credential-audit hook (see below) |
 | `insta upgrade` · `insta autoupdate [on\|off]` | self-update the CLI (binary re-runs the installer; npm uses `npm i -g`). Auto-update is **on by default** pre-1.0; `autoupdate off` / `INSTA_NO_AUTOUPDATE=1` disables. (CLI ≥ 0.0.5) |
-| `insta setup agent` [`--mcp-token`] | one-step agent onboarding: installs the insta skill user-globally for every coding agent, then registers the **remote MCP server** — Claude Code via `claude mcp add` (user scope) plus a config-file entry for every other detected MCP-capable agent. Default = **OAuth**, no credential written (browser auth on first `/mcp` use); `--mcp-token` = headless fallback that mints a durable `insta_` token named `mcp-<hostname>` (needs `insta login`; Claude Code only). Idempotent; `INSTA_MCP_URL` / `INSTA_SKILLS_REPO` override the URL / skill source. The skill source, the MCP host and its registration name are all resolved from the current **environment**, so a staging machine installs `InsForge/insta-skills@devel` and registers `insta-cloud-staging` → `mcp.staging.instacloud.com` (both environments can coexist on one machine). See [mcp.md](references/mcp.md) and [Environments](#environments) |
+| `insta setup agent` [`--mcp-token`] | one-step agent onboarding: installs the insta skill user-globally for every coding agent, then registers the **remote MCP server** — Claude Code via `claude mcp add` (user scope) plus a config-file entry for every other detected MCP-capable agent. Default = **OAuth**, no credential written (browser auth on first `/mcp` use); `--mcp-token` = headless fallback that mints a durable `insta_` token named `mcp-<hostname>` (needs `insta login`; Claude Code only). Idempotent; `INSTA_MCP_URL` / `INSTA_SKILLS_REPO` override the URL / skill source. The skill source, the MCP host and its registration name are all resolved from the current **environment**, so a staging machine installs `InsForge/insta-skills#devel` and registers `insta-cloud-staging` → `mcp.staging.instacloud.com` (both environments can coexist on one machine). See [mcp.md](references/mcp.md) and [Environments](#environments) |
 | `insta mcp install` [`--agent <claude-code\|cursor\|codex\|opencode\|copilot\|factory-droid>`] [`--mcp-token`] | register the remote MCP server only (no skill install) — default: Claude Code + all detected agents; `--agent` targets one. Config merges never clobber existing entries; restart the tool afterwards |
 
 `DATABASE_URL` + compute + storage (`AWS_*` / `BUCKET_NAME`) are **per-branch** (new projects: each
@@ -72,7 +72,7 @@ session and you log in again. Default is `prod`; nothing changes unless you swit
 | control plane | `api.instacloud.com` (us-east-2) | `api.staging.instacloud.com` (us-west-1) |
 | MCP server | `mcp.instacloud.com/mcp` | `mcp.staging.instacloud.com/mcp` |
 | registers as | `insta-cloud` | `insta-cloud-staging` |
-| agent skills | `InsForge/insta-skills` | `InsForge/insta-skills@devel` |
+| agent skills | `InsForge/insta-skills` | `InsForge/insta-skills#devel` |
 | CLI channel | latest stable release | newest prerelease (`v*-rc.N`), else stable |
 
 Install one-liners — each installs a complete stack for its environment (CLI build, control plane,
