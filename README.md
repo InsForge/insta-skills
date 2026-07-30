@@ -1,48 +1,103 @@
 # InstaCloud Skills
 
-Agent skills (Markdown in the [Anthropic Skills format](https://docs.claude.com)) that teach AI
-coding agents how to operate cloud services through an **InstaCloud** project — branching,
-deploying, the credential seam, governance, and running multiple agents in parallel.
+[![License](https://img.shields.io/badge/License-Apache%202.0-orange.svg)](LICENSE)
 
-## Layout
+The `insta` agent skill: what a coding agent needs to know to run cloud infrastructure
+through [InstaCloud](https://github.com/InsForge/insta-cli) — provisioning services,
+deploying apps, forking a whole environment per branch, wiring credentials into an app,
+passing governance approvals, and giving several agents a sandbox each.
+
+Skills are Markdown following the [Agent Skills](https://agentskills.io/) format, so they
+work in Claude Code, Codex, Cursor, OpenCode, Copilot, Gemini CLI, Windsurf and anything
+else that reads a `skills/` directory.
+
+## Install
+
+The `insta` CLI installs this skill for you:
+
+```bash
+insta setup agent
+```
+
+That copies the skill user-globally for every coding agent on the machine and registers the
+InstaCloud MCP server. `insta project create` and `insta project link` additionally install
+the stack skills a project needs (Neon Postgres, Tigris, Better Auth) into the project
+itself, along with the `insta observe` credential-audit hook — see
+[governance.md](insta/references/governance.md).
+
+To install the skill on its own:
+
+```bash
+npx skills add InsForge/insta-skills -s insta
+```
+
+Or copy it into your agent's skills directory:
+
+```bash
+mkdir -p ~/.claude/skills && cp -r insta ~/.claude/skills/insta
+```
+
+## What's inside
 
 ```
-skills/
-├── README.md            ← you are here
-└── insta/
-    ├── SKILL.md         ← entry skill: the model, setup, two non-negotiables, governance
-    ├── references/      ← task guides: setup · deploy · branching · governance · operate
-    └── cli-reference.md ← full `insta` command catalog, deploy, Dockerfiles, govern/observe
+insta/
+├── SKILL.md              entry point: the model, setup, the two non-negotiables, governance
+├── cli-reference.md      every command, with flags, approval gates and plan limits
+└── references/
+    ├── setup.md          CLI install, auth, a first project and its services
+    ├── deploy.md         source and image deploys, ports, custom domains
+    ├── frameworks.md     deploy recipes per framework
+    ├── branching.md      branch environments and the data that comes with them
+    ├── governance.md     approvals, policy, the credential audit
+    ├── operate.md        status, triage and recovery
+    └── mcp.md            the remote insta-cloud MCP server
 ```
 
-## Skill format
+`SKILL.md` is what the agent loads first; it routes to a reference when a task needs the
+detail. `cli-reference.md` is the canonical description of the CLI surface — the
+[insta-cli](https://github.com/InsForge/insta-cli) repo links here for flags rather than
+keeping a second copy, and a command or flag change there is not finished until it lands
+here.
+
+## Environments
+
+InstaCloud runs two separate deployments, and each gets its own branch of this repository:
+
+| Environment | Skill source |
+|---|---|
+| `prod` | `InsForge/insta-skills` (`main`) |
+| `staging` | `InsForge/insta-skills#devel` |
+
+`insta setup agent` picks the right one from the machine's current environment, so a staging
+install reads skill text that describes the staging control plane.
+
+Use the `#ref` form when pinning a branch by hand. `owner/repo@ref` looks equivalent, but
+the skills tool parses `@` as a skill-name filter and silently leaves you on the default
+branch — while still echoing the ref back in its progress output, so it reads as though it
+worked.
+
+## Authoring
+
+- **Reference the `insta` CLI, not provider APIs.** Skills say which `insta` command to run.
+  Provider-specific knowledge belongs behind the CLI and the control plane.
+- **One skill, one capability.** Split large topics by task.
+- **Include failure modes.** A skill earns its keep by teaching what goes wrong and how to
+  recover.
+- **Keep examples runnable.** Agents execute the code blocks.
 
 A skill is a `SKILL.md` with YAML frontmatter:
 
 ```markdown
 ---
 name: <skill-name>
-description: <one-line description the agent uses to decide whether to invoke this skill>
+description: <one line; the agent uses this to decide whether to load the skill>
 ---
 
 # <title>
-<markdown body — instructions, examples, gotchas, references to the `insta` CLI>
+
+<instructions, examples, failure modes, the `insta` commands to run>
 ```
 
-## Authoring guidelines
+## License
 
-- **Reference the `insta` CLI, not provider APIs.** Skills tell the agent which `insta` command to
-  run; provider-specific knowledge lives behind the CLI and control plane.
-- **One skill, one capability.** Split large topics by task.
-- **Include failure modes.** A skill is most valuable when it teaches what goes wrong and how to recover.
-- **Keep examples runnable.** Agents execute the code blocks.
-
-## Install into a project
-
-```bash
-# (planned) insta skills pull — for now copy skills/insta/ into your agent's skills dir, e.g.
-mkdir -p .claude/skills && cp -r skills/insta .claude/skills/insta
-```
-
-The `insta observe` credential-audit hook is installed automatically on `insta project create`/`link`
-(see SKILL.md → Governance & audit).
+Apache 2.0. See [LICENSE](LICENSE).
