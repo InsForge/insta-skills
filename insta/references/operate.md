@@ -57,7 +57,9 @@ insta db limits --memory 8Gi --cpu 4     # same dial for postgres (insta-db-back
 ```
 
 - **Memory is the dial.** It is the ceiling that actually bites (hitting it OOM-kills the app);
-  vCPU only throttles, so it is derived unless `--cpu` is passed for a parallel workload.
+  vCPU only throttles, so it is derived unless `--cpu` is passed for a parallel workload. On
+  compute, setting always requires `--memory` (`--cpu` is an override, never valid alone); on db,
+  either flag alone works. Decimal (`mb`/`gb`) and binary (`Mi`/`Gi`) suffixes are both accepted.
 - **Paid plans.** Free services stay at the minimum ceiling — this is the one thing a plan gates,
   precisely because usage billing means the size is no longer what you pay for.
 - **Compute ceilings snap to the provider's sizes** (vCPU comes from a fixed ladder; memory in

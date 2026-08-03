@@ -224,10 +224,10 @@ timeline, and agent audit patterns are in [governance.md](references/governance.
 not machine size × hours). Scale-to-zero is the default, so idle services cost nearly nothing;
 `always-on` (all plans: `insta compute always-on`, `insta db always-on`, or `--always-on` at
 create) trades a small continuous RAM cost for zero cold starts — see
-[operate.md](references/operate.md). **The resource CEILING is the paid lever** (`insta compute limits`,
-`insta db limits` — see [operate.md](references/operate.md); also
-`insta services scale`): free plans stay at the minimum and get a 403 —
-`insta billing upgrade` first; `insta usage` /
+[operate.md](references/operate.md). **The paid levers are the resource CEILING** (`insta compute limits`,
+`insta db limits` — per-machine size, see [operate.md](references/operate.md))
+**and machine COUNT** (`insta services scale` — horizontal): free plans stay
+at the minimum of both and get a 403 — `insta billing upgrade` first; `insta usage` /
 `insta billing` show cycle usage and cost. One free org per user. Full flags in
 [cli-reference.md](cli-reference.md).
 
