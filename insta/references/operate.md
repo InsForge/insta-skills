@@ -24,12 +24,31 @@ insta metrics db · insta logs db      # provider-limited: returns a note, not s
 insta-oss: metrics/logs return a clear "cloud-only / coming" 501 today — use `docker logs`/`docker
 stats` on the branch's containers directly if you must, and don't retry the CLI command.
 
+## Idle modes & what an app costs
+
+**Billing is always by actual app usage** — vCPU·min burned, GB·min of RAM resident, storage,
+egress — never by machine size × hours. The idle mode only changes what "idle" consumes:
+
+- **Scale-to-zero (default)**: idle machines suspend and auto-wake on the next request. An idle
+  service costs **nearly nothing**; the trade is a cold start (typically a few seconds) on the
+  first request after idling.
+- **Always-on (opt-in, all plans)**: machines never suspend, so there are **no cold starts** — but
+  the idle app keeps its RAM resident (plus a trickle of vCPU), and that real usage bills
+  continuously (roughly $1–2.50/month for an idle minimum-spec app, mostly RAM).
+
+Flip it any time — it is a latency/cost dial, not a plan feature:
+
+- `insta services add compute <name> --always-on` — create pinned-warm.
+- `insta compute always-on on|off [service]` — toggle a live service.
+- `insta db always-on on|off [--group <g>]` — the same dial for a postgres service (insta-db):
+  `off` (default) suspends the idle instance and cold-starts the first connection after idle;
+  `on` keeps it warm.
+
 ## Pausing & resuming compute
 
-Compute auto-suspends when idle and auto-wakes on the next request. To take a service **offline on
-purpose** — a maintenance window, cost control, or parking a preview branch — use the lifecycle
-controls, which are a *persistent* override: a stopped/suspended service will **not** be re-woken by
-incoming traffic.
+To take a service **offline on purpose** — a maintenance window, cost control, or parking a
+preview branch — use the lifecycle controls, which are a *persistent* override: a stopped/suspended
+service will **not** be re-woken by incoming traffic (unlike scale-to-zero's auto-wake).
 
 - `insta compute stop [service]` — clean shutdown; stays down until `start`.
 - `insta compute suspend [service]` — snapshot RAM for a faster resume; stays down until `start`.
@@ -38,7 +57,8 @@ incoming traffic.
 
 `[service]` is optional when the project has exactly one compute service. These work on all plans and
 require no approval. A billing suspension is separate: you can't `start` while an org is billing-
-suspended, and a manual `stop` is preserved across a billing pause/resume cycle.
+suspended, and a manual `stop` is preserved across a billing pause/resume cycle. A billing
+suspension force-stops always-on machines too — pinned-warm does not outlive the org's credit.
 
 ## Deploy triage (URL not serving after deploy)
 

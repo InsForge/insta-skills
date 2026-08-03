@@ -140,7 +140,8 @@ branch URL on success — that means the platform accepted and rolled the machin
 serves:
 
 1. Poll the printed URL (`curl -s -o /dev/null -w '%{http_code}'`) every ~3s for up to ~60s.
-   Scale-to-zero branches cold-start on the first request — allow a slow first hit.
+   Scale-to-zero branches (the default) cold-start on the first request — allow a slow first hit
+   (always-on services skip this; see references/operate.md).
 2. `200` (or the app's expected status) → deployed; report the URL.
 3. Still failing → the ordered triage list in [operate.md](references/operate.md) (port mismatch
    and migration-gated startup account for most failures).
@@ -219,9 +220,14 @@ If a request spans two areas ("deploy and check it's healthy"), load both and an
 The gate mechanics and the relay procedure are above; the observe credential-audit hook, the events
 timeline, and agent audit patterns are in [governance.md](references/governance.md).
 
-**Scaling & billing (cloud, paid plans):** `insta services scale/upgrade` (free plans get 403 —
-`insta billing upgrade` first); `insta usage` / `insta billing` show cycle usage and cost. One free
-org per user. Full flags in [cli-reference.md](cli-reference.md).
+**Billing is by actual app usage** (vCPU·min / RAM GB·min actually consumed + storage + egress —
+not machine size × hours). Scale-to-zero is the default, so idle services cost nearly nothing;
+`always-on` (all plans: `insta compute always-on`, `insta db always-on`, or `--always-on` at
+create) trades a small continuous RAM cost for zero cold starts — see
+[operate.md](references/operate.md). **Spec is the paid lever:** `insta services scale/upgrade`
+need a paid plan (free plans get 403 — `insta billing upgrade` first); `insta usage` /
+`insta billing` show cycle usage and cost. One free org per user. Full flags in
+[cli-reference.md](cli-reference.md).
 
 ## Response format
 
