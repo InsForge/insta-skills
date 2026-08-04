@@ -44,6 +44,33 @@ Flip it any time — it is a latency/cost dial, not a plan feature:
   `off` (default) suspends the idle instance and cold-starts the first connection after idle;
   `on` keeps it warm.
 
+## Resource ceilings (limits)
+
+A service's size is **not** a price — billing is actual usage either way. It is a **ceiling**: the
+most the app may burn, i.e. its blast radius. So it moves in both directions, and lowering one
+costs the customer nothing.
+
+```bash
+insta compute limits                     # ceiling 1 vCPU / 256 MB  (plan max 2 vCPU / 2 GB)
+insta compute limits --memory 1gb        # set it — cpu derives from memory
+insta db limits --memory 8Gi --cpu 4     # same dial for postgres (insta-db-backed)
+```
+
+- **Memory is the dial.** It is the ceiling that actually bites (hitting it OOM-kills the app);
+  vCPU only throttles, so it is derived unless `--cpu` is passed for a parallel workload. On
+  compute, setting always requires `--memory` (`--cpu` is an override, never valid alone); on db,
+  either flag alone works. Decimal (`mb`/`gb`) and binary (`Mi`/`Gi`) suffixes are both accepted.
+- **Paid plans.** Free services stay at the minimum ceiling — this is the one thing a plan gates,
+  precisely because usage billing means the size is no longer what you pay for.
+- **Compute ceilings snap to the provider's sizes** (vCPU comes from a fixed ladder; memory in
+  256 MB steps within a per-vCPU band). A request that cannot be honored exactly is REJECTED with
+  the legal value named — never silently rounded.
+- Raising or lowering a compute ceiling **restarts the machine**; a postgres resize restarts the
+  instance only if it is awake (a suspended one applies the new ceiling on its next wake).
+
+`insta services upgrade` still exists but is the pre-usage-billing control: named specs, up-only.
+Prefer `limits`.
+
 ## Pausing & resuming compute
 
 To take a service **offline on purpose** — a maintenance window, cost control, or parking a
