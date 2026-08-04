@@ -53,7 +53,7 @@ CMD ["node", "server.js"]
 
 Then: `insta deploy .` (port auto-derives from `EXPOSE 3000`). Route handlers read `process.env`
 for `DATABASE_URL` / the S3 bundle. Pool Postgres at module scope; set `idleTimeoutMillis` under
-Neon's suspend window so a scaled-to-zero DB doesn't leave a dead socket.
+the database's scale-to-zero suspend window so an idle-suspended DB doesn't leave a dead socket.
 
 ## Node/Express (API or full-stack, backend serves the built SPA)
 

@@ -21,7 +21,7 @@ insta setup agent
 
 That copies the skill user-globally for every coding agent on the machine and registers the
 InstaCloud MCP server. `insta project create` and `insta project link` additionally install
-the stack skills a project needs (Neon Postgres, Tigris, Better Auth) into the project
+the stack skills a project needs (Tigris, Better Auth) into the project
 itself, along with the `insta observe` credential-audit hook — see
 [governance.md](insta/references/governance.md).
 
