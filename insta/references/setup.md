@@ -42,6 +42,10 @@ the other). Full table in [cli-reference.md](../cli-reference.md#environments).
 - **Humans:** `insta login --oauth github|google` — opens a browser (loopback capture). If the
   environment can't open one, relay any printed sign-in URL to the human **immediately and
   verbatim**; never sit on it silently.
+- **Headless machines (VM, SSH, CI — no browser on THIS machine):** `insta login --device` —
+  prints a console link + code the human opens **on any other device** and approves; the CLI
+  polls until logged in (~15 min window). Relay the printed link + code to the human immediately
+  and verbatim. Don't use `--oauth` here: its loopback callback can never reach this machine.
 - There is no login on insta-oss — don't try; `insta login` is a cloud-only command.
 
 ## Project
