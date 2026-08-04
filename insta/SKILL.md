@@ -56,7 +56,8 @@ to disable), else re-run the installer (idempotent) or `npm update -g insta`.
 The same commands drive both. Resolve which one you're on from `insta status` (`api:` line):
 
 - **InstaCloud (managed cloud)** — requires `insta login` (agents: `--email/--password` or an API
-  token; humans: `--oauth github|google`, opens a browser).
+  token; humans: `--oauth github|google`, opens a browser; headless machine with a human reachable
+  elsewhere: `--device` prints a link + code they approve from any other browser).
 - **insta-oss (self-hosted local daemon)** — `INSTA_API_URL=http://127.0.0.1:8080` (its default).
   **No login exists or is needed** (localhost trust, builtin `local` user); billing/usage/metrics
   return clear "cloud-only" errors — don't retry them.
