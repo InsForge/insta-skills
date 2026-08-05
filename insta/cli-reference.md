@@ -14,13 +14,15 @@ branching, governance, operate, mcp.
 | `insta project create <name>` [`--org <id>`] | create an **empty** project (no services), link this dir |
 | `insta project list` [`--org`] [`--json`] · `insta project link <id>` | list / link existing |
 | `insta project delete` | tear down ALL resources + unlink (gated: `project.delete`, approval by default) |
-| `insta services add <postgres\|storage\|compute> <name>` [`--branch <b>`] [`--region <r>`] [`--image <url>`] [`--port <n>`] [`--always-on`] | provision a service **on a branch** (default: current/linked branch) — services are **branch-scoped**: adding one on a branch does not add it to any other branch; postgres/compute get a default access domain (gated: `service.add`). **compute only:** `--image` runs that image immediately at creation (otherwise compute starts as an empty, unreachable app until `insta deploy`); `--port` sets the listening port (default `8080`); `--always-on` creates it pinned-warm (never scales to zero — all plans, billing is actual usage either way). The image is **persisted** on the service — shown in `services list`, re-run when the branch is forked, and updated later via `insta deploy --image` |
+| `insta services add <postgres\|storage\|compute> <name>` [`--branch <b>`] [`--region <r>`] [`--image <url>`] [`--port <n>`] [`--always-on`] [`--volume <gi>`] | provision a service **on a branch** (default: current/linked branch) — services are **branch-scoped**: adding one on a branch does not add it to any other branch; postgres/compute get a default access domain (gated: `service.add`). **compute only:** `--image` runs that image immediately at creation (otherwise compute starts as an empty, unreachable app until `insta deploy`); `--port` sets the listening port (default `8080`); `--always-on` creates it pinned-warm (never scales to zero — all plans, billing is actual usage either way); `--volume <gi>` attaches a persistent `/data` volume (**create-time only** — see [Volumes](#volumes)). The image is **persisted** on the service — shown in `services list`, re-run when the branch is forked, and updated later via `insta deploy --image` |
 | `insta regions` [`--json`] | list regions available for postgres/compute services |
 | `insta services list` [`--json`] [`--branch <b>`] · `insta services rename <type> <name> <new-name>` [`--json`] [`--branch <b>`] · `insta services remove <type> <name>` [`--branch <b>`] | list / rename / remove a branch's services (default: current branch; rename re-keys managed secret names; gated: `service.rename` / `service.remove`) |
 | `insta services secrets <type> <name>` [`--branch <b>`] [`--json`] | secret **names** bound to one service (e.g. `insta services secrets postgres db`) — default: current branch |
 | `insta services scale compute <name> <number>` [`region`] | set compute machine count — **paid plans only** (free → 403); gated: `service.scale`. `region` is an InstaCloud slug (e.g. `us-east`; see `insta regions`), **not** a raw Fly code |
 | `insta compute limits [service]` [`--memory <size>`] [`--cpu <n>`] [`--branch <b>`] [`--json`] | show or set a compute service's **resource ceiling** — **paid plans**. Bare = read (prints the ceiling **and** the plan max). Setting **requires `--memory`** (`512mb`, `1gb` — decimal `mb/gb` and binary `Mi/Gi` suffixes both accepted); cpu derives from it, and `--cpu` is only an optional override for parallel workloads (never valid alone). Moves **both directions**: billing is actual usage, so the ceiling caps what the app may burn — it is not a price |
 | `insta db limits` [`--cpu <n>`] [`--memory <size>`] [`--branch <b>`] [`--group <g>`] [`--json`] | same ceiling control for a postgres service (insta-db-backed) — **paid plans**; both directions. Takes provider quantities (`--cpu 2` or `2500m`; `--memory 4Gi`); either flag alone works. Bare = read the current ceiling |
+| `insta compute volume [service]` [`--size <Gi>`] [`--branch <b>`] [`--json`] | show or grow a compute service's persistent `/data` volume. Bare = read (size, mount path, plan cap — any plan). `--size` grows it — **paid plans, grow-only** (a provisioned disk cannot shrink); attach is **create-time only** via `services add --volume`. See [Volumes](#volumes) |
+| `insta db volume` [`--size <Gi>`] [`--branch <b>`] [`--group <g>`] [`--json`] | show or grow a postgres service's provisioned volume (block disk; insta-db-backed only). Bare = read (size + plan cap — any plan); `--size` grows it — **paid plans, grow-only**. Postgres has its volume by default — there is nothing to attach |
 | `insta services upgrade <compute\|postgres> <name> <spec>` | **legacy** (pre-usage-billing): raise a named spec, up-only — **paid plans only**; gated: `service.upgrade`. Prefer `insta compute limits` (and, for insta-db-backed postgres, `insta db limits`), which also lower; **Neon-backed postgres still resizes only via `upgrade`** |
 | `insta branch create <name>` [`--from <parent>`] | isolated env: **forks the parent branch's current services** — a CoW database branch per postgres, a CoW-forked bucket per storage (snapshot-enabled projects), a clone of every compute service (re-running the parent's persisted image, if any) — then the two branches' service catalogs diverge independently (services are **branch-owned, not project-wide**). **≤10 branches/project.** Does NOT switch |
 | `insta branch switch <name>` · `insta branch list` [`--json`] | set current branch / list |
@@ -64,6 +66,21 @@ avoid clobbering platform-managed credentials. Gated: `secrets.write`. Changes a
 it records which service a secret belongs to but never changes the secret's name/value or the
 `.env` bundle. `secrets list`, `secrets tree`, and `services secrets` are all **names only**; secret
 **values** still come exclusively from `insta secrets` → `.env`.
+
+## Volumes
+
+A **volume** is a service's persistent block disk — always a **service attribute**, never a
+standalone resource (nothing to create, list, or attach after the fact):
+
+- **postgres** has one by default — view/grow only: `insta db volume` [`--size <Gi>`].
+- **compute** opts in **at creation**: `insta services add compute <name> --volume <gi>` mounts a
+  persistent volume at the fixed path **`/data`** (survives deploys and restarts; lives and dies
+  with the service). Constraints: machine count stays **1**, and idle scale-to-zero uses **stop**
+  (cold wake) instead of suspend. View/grow later: `insta compute volume` [`--size <Gi>`].
+- **Free plans may attach at the default 1Gi**; viewing is every plan. Only **growth is paid** and
+  plan-capped — don't pre-check the plan, just run the command: the backend's 403 carries the
+  upgrade hint. **Grow-only** — a provisioned disk cannot shrink.
+- Billing is **actual data stored**; the size is a cap, not a price.
 
 ## Environments
 
