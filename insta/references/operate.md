@@ -76,19 +76,21 @@ Prefer `limits`.
 ## Database memory: high is normal
 
 A dedicated Postgres instance is *expected* to sit high on memory — often 70–90% — even with zero
-traffic: Postgres turns idle memory into shared buffers and page cache and holds it. A report like
+traffic: the data lives in shared buffers and the OS page cache, so free memory ends up used as
+cache and stays that way. A report like
 "the database sits at 78% memory with no active queries" describes the healthy steady state, not a
 leak. **Say that first**, before proposing any action.
 
 Escalate from "normal" to "needs headroom" only on real pressure signals:
 
-- OOM restarts or dropped connections — `insta logs db`, restart events in `insta events`. There
-  is no dedicated OOM log line; the observable signature is the Postgres crash-recovery aftermath:
+- OOM restarts or dropped connections — `insta logs db` is the reliable signal. There is no
+  dedicated OOM log line; the observable signature is the Postgres crash-recovery aftermath:
   "terminating connection because of crash of another server process" or "automatic recovery in
   progress".
 - cache hit ratio degrading or queries slowing under load (`insta db stats`) — the working set has
-  outgrown the cache. A genuinely *rising* memory trend is also suspect: the buffer cache is
-  ~flat from startup, so climbing means something is leaking, not caching.
+  outgrown the cache. A *sustained* memory rise at steady state — well past startup/wake warmup,
+  which legitimately climbs as the cache warms — is also suspect: that shape means something is
+  leaking, not caching.
 
 When those show, the remedy is a bigger ceiling, in this order:
 
