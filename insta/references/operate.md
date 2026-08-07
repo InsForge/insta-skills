@@ -18,7 +18,9 @@ deployed).
 ```bash
 insta metrics compute [group] [--branch --from --to --step --json]
 insta logs compute [group] [--branch --limit --region --instance --json]
-insta metrics db · insta logs db      # provider-limited: returns a note, not series
+insta metrics db · insta logs db      # dedicated postgres: cpu/memory/disk series; a provider
+                                      # without them returns a note, not series
+insta db stats [--group]              # point-in-time: connections x/y · cache hit · db size
 ```
 
 insta-oss: metrics/logs return a clear "cloud-only / coming" 501 today — use `docker logs`/`docker
@@ -70,6 +72,34 @@ insta db limits --memory 8Gi --cpu 4     # same dial for postgres (insta-db-back
 
 `insta services upgrade` still exists but is the pre-usage-billing control: named specs, up-only.
 Prefer `limits`.
+
+## Database memory: high is normal
+
+A dedicated Postgres instance is *expected* to sit high on memory — often 70–90% — even with zero
+traffic: the data lives in shared buffers and the OS page cache, so free memory ends up used as
+cache and stays that way. A report like
+"the database sits at 78% memory with no active queries" describes the healthy steady state, not a
+leak. **Say that first**, before proposing any action.
+
+Escalate from "normal" to "needs headroom" only on real pressure signals:
+
+- OOM restarts or dropped connections — `insta logs db` is the reliable signal. There is no
+  dedicated OOM log line; the observable signature is the Postgres crash-recovery aftermath:
+  "terminating connection because of crash of another server process" or "automatic recovery in
+  progress".
+- cache hit ratio degrading or queries slowing under load (`insta db stats`) — the working set has
+  outgrown the cache. A *sustained* memory rise at steady state — well past startup/wake warmup,
+  which legitimately climbs as the cache warms — is also suspect: that shape means something is
+  leaking, not caching.
+
+When those show, the remedy is a bigger ceiling, in this order:
+
+1. **Paid plan**: `insta db limits --memory <size>` — raise it up to the plan cap.
+2. **On Free** (postgres pinned at the minimum ceiling) **or already at the cap**: upgrade the
+   plan, then raise `db limits`.
+
+Never propose restarting the instance to "free" memory — the cache refills by design, and the
+restart only costs a cold start.
 
 ## Pausing & resuming compute
 
