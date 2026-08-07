@@ -82,9 +82,13 @@ leak. **Say that first**, before proposing any action.
 
 Escalate from "normal" to "needs headroom" only on real pressure signals:
 
-- OOM restarts or dropped connections — `insta logs db`, restart events in `insta events`
+- OOM restarts or dropped connections — `insta logs db`, restart events in `insta events`. There
+  is no dedicated OOM log line; the observable signature is the Postgres crash-recovery aftermath:
+  "terminating connection because of crash of another server process" or "automatic recovery in
+  progress".
 - cache hit ratio degrading or queries slowing under load (`insta db stats`) — the working set has
-  outgrown the cache
+  outgrown the cache. A genuinely *rising* memory trend is also suspect: the buffer cache is
+  ~flat from startup, so climbing means something is leaking, not caching.
 
 When those show, the remedy is a bigger ceiling, in this order:
 
