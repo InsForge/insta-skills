@@ -23,6 +23,9 @@ branching, governance, operate, mcp.
 | `insta db limits` [`--cpu <n>`] [`--memory <size>`] [`--branch <b>`] [`--group <g>`] [`--json`] | same ceiling control for a postgres service — **paid plans**; both directions. Takes provider quantities (`--cpu 2` or `2500m`; `--memory 4Gi`); either flag alone works. Bare = read the current ceiling |
 | `insta compute volume [service]` [`--size <Gi>`] [`--delete`] [`--branch <b>`] [`--json`] | show, **attach**, grow, or **delete** a compute service's persistent `/data` volume. Bare = read (size, mount path, plan cap — any plan). `--size` on a volumeless service **attaches** one (any plan at the default 1Gi; mounts on the next deploy); on a volume-bearing one it grows — **paid plans, grow-only** (a provisioned disk cannot shrink). `--delete` **destroys the disk and ALL its data immediately** (any plan; irreversible; no detach exists — billing stops now, and suspend fast-wake + scale-out return; gated `service.remove`). See [Volumes](#volumes) |
 | `insta db volume` [`--size <Gi>`] [`--branch <b>`] [`--group <g>`] [`--json`] | show or grow a postgres service's provisioned volume (block disk). Bare = read (size + plan cap — any plan); `--size` grows it — **paid plans, grow-only**. Postgres has its volume by default — there is nothing to attach |
+| `insta storage list` [`--prefix <p>`] [`--cursor <c>`] [`--limit <n>`] [`--service <name>`] [`--branch <b>`] [`--json`] | list the objects in a storage service's bucket — one `size  modified  key` row each, in key order (S3 lists lexicographically). **Prefix filter only**: S3 has no substring search, so `--prefix` is applied **server-side** and there is nothing to match mid-key. Pagination is by cursor — the `nextCursor` a page prints is what `--cursor` takes; `--limit` is 1..1000 (default 100). `--service` picks one when the branch has several storage services (gated: `storage.read`) |
+| `insta storage get <key>` [`-o <file>`] [`--service <name>`] [`--branch <b>`] [`--json`] | download one object. The platform returns a **short-lived presigned URL** (~60s) and the bytes come **straight from the provider** — nothing streams through the control plane. Writes to the key's **last segment** by default (never a path, so no key can write outside cwd); `-o` names the file. `--json` prints `{url, expiresAt}` and downloads nothing (gated: `storage.read`) |
+| `insta storage delete <key>` [`--service <name>`] [`--branch <b>`] [`--json`] | delete one object — **irreversible**, and it runs immediately with no prompt (like every other destructive command here, the governance gate is the guard; a data operation stages nothing for a deploy). Deleting a key that is already gone still succeeds, so success is no proof it existed (gated: `storage.delete`, `allow` by default) |
 | `insta services upgrade <compute\|postgres> <name> <spec>` | **legacy** (pre-usage-billing): raise a named spec, up-only — **paid plans only**; gated: `service.upgrade`. Prefer `insta compute limits` (and, for postgres, `insta db limits`), which also lower. **Compute-only in practice**: a postgres `upgrade` is rejected outright (400) — resize a postgres service with `insta db limits` (cpu/memory) and grow its disk with `insta db volume` |
 | `insta branch create <name>` [`--from <parent>`] | isolated env: **forks the parent branch's current services** — a CoW database branch per postgres, a CoW-forked bucket per storage (snapshot-enabled projects), a clone of every compute service (re-running the parent's persisted image, if any) — then the two branches' service catalogs diverge independently (services are **branch-owned, not project-wide**). **≤10 branches/project.** Does NOT switch |
 | `insta branch switch <name>` · `insta branch list` [`--json`] | set current branch / list |
@@ -45,7 +48,7 @@ branching, governance, operate, mcp.
 | `insta billing` [`--org <id>`] [`--json`] | current cycle summary: tier / included credit / used / overage / status |
 | `insta billing upgrade <pro\|enterprise>` · `insta billing portal` [`--org`] [`--no-open`] [`--json`] | Stripe Checkout to subscribe / Customer Portal to manage (opens a browser; `--no-open` prints the URL) |
 | `insta events` [`--branch <b>`] [`--limit <n>`] [`--json`] | audit + agent-event timeline |
-| `insta policy get` [`--json`] · `insta policy set <action> <decision>` | view / set governance policy (actions include `service.add/remove/rename/scale/upgrade/setAccess`) |
+| `insta policy get` [`--json`] · `insta policy set <action> <decision>` | view / set governance policy (actions include `service.add/remove/rename/scale/upgrade/setAccess` and `storage.read` / `storage.delete`) |
 | `insta approvals list` [`--status`] · `insta approvals approve <id>` [`--always`] · `insta approvals deny <id>` | manage gated actions |
 | `insta observe install` · `report` [`--json`] · `sync` | local credential-audit hook (see below) |
 | `insta upgrade` · `insta autoupdate [on\|off]` | self-update the CLI (binary re-runs the installer; npm uses `npm i -g`). Auto-update is **on by default** pre-1.0; `autoupdate off` / `INSTA_NO_AUTOUPDATE=1` disables. (CLI ≥ 0.0.5) |
@@ -179,7 +182,8 @@ Moved to [references/deploy.md](references/deploy.md) (backend / full-stack / SP
 
 ## Govern & observe
 
-- **Policy** gates `secrets.read`, `secrets.write`, `deploy`, `branch.delete`, `project.delete`, and
+- **Policy** gates `secrets.read`, `secrets.write`, `deploy`, `branch.delete`, `project.delete`,
+  `storage.read` (`storage list` + `storage get`), `storage.delete`, and
   `service.add` / `service.remove` / `service.rename` / `service.scale` / `service.upgrade` /
   `service.setAccess`. `approve` = require a
   human: the action returns `approval_required`; an admin runs `insta approvals approve <id>`, then
