@@ -37,7 +37,7 @@ Two consequences to internalize:
   isolation. `insta manifest` shows what a branch really has.
 
 **Limits:** ≤10 branches per project (hard). `branch create` does **NOT** switch you; compute
-scales to zero when idle on every branch — `main` included (cost lever, not autoscaling).
+scales to zero when idle on every branch — `main` included (a cost lever; compute capacity stays fixed).
 
 ## The branch loop (one unit of work)
 
