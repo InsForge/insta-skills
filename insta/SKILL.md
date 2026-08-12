@@ -23,10 +23,10 @@ seam. The `insta` CLI talks **only** to the InstaCloud control plane — you nev
 backend directly. A project can have any number of **services**, added on demand — there are three
 service types you build **directly** against:
 
-- **postgres** — relational DB (autoscaling compute + read replicas). Plain Postgres: connect
-  any driver/ORM directly with `DATABASE_URL` — no vendor SDK or vendor skill. It scales to zero
-  when idle, so keep your pool's `idleTimeoutMillis` under the suspend window (see
-  [frameworks.md](references/frameworks.md)).
+- **postgres** — relational DB with a fixed resource ceiling (raise it on paid plans with
+  `insta db limits`). Plain Postgres: connect any driver/ORM directly with `DATABASE_URL` — no
+  vendor SDK or vendor skill. It scales to zero when idle, so keep your pool's
+  `idleTimeoutMillis` under the suspend window (see [frameworks.md](references/frameworks.md)).
 - **storage** — S3-compatible object/blob storage.
 - **compute** — your container(s) at a public URL. A project can have several compute services
   (e.g. `api`, `worker`).
