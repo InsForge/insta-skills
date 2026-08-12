@@ -75,7 +75,7 @@ A cloud project starts **empty**; add what the app needs (insta-oss auto-provisi
 postgres + one storage at create):
 
 ```bash
-insta services add postgres db        # relational DB (autoscaling)
+insta services add postgres db        # relational DB (size it with insta db limits)
 insta services add storage files     # S3-compatible bucket
 insta services add compute api       # your container; add more groups: worker, jobs, …
 insta services list --json

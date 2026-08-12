@@ -40,7 +40,7 @@ Flip it any time — it is a latency/cost dial, not a plan feature:
 
 - `insta services add compute <name> --always-on` — create pinned-warm.
 - `insta compute always-on on|off [service]` — toggle a live service.
-- `insta db always-on on|off [--group <g>]` — the same dial for a postgres service (insta-db):
+- `insta db always-on on|off [--group <g>]` — the same dial for a postgres service:
   `off` (default) suspends the idle instance and cold-starts the first connection after idle;
   `on` keeps it warm.
 
@@ -53,7 +53,7 @@ costs the customer nothing.
 ```bash
 insta compute limits                     # ceiling 1 vCPU / 256 MB  (plan max 2 vCPU / 2 GB)
 insta compute limits --memory 1gb        # set it — cpu derives from memory
-insta db limits --memory 8Gi --cpu 4     # same dial for postgres (insta-db-backed)
+insta db limits --memory 8Gi --cpu 4     # same dial for postgres
 ```
 
 - **Memory is the dial.** It is the ceiling that actually bites (hitting it OOM-kills the app);
@@ -68,8 +68,10 @@ insta db limits --memory 8Gi --cpu 4     # same dial for postgres (insta-db-back
 - Raising or lowering a compute ceiling **restarts the machine**; a postgres resize restarts the
   instance only if it is awake (a suspended one applies the new ceiling on its next wake).
 
-`insta services upgrade` still exists but is the pre-usage-billing control: named specs, up-only.
-Prefer `limits`.
+`insta services upgrade` still exists but is the pre-usage-billing control for **compute**: named
+specs, up-only. Prefer `limits`. For postgres it is not a fallback at all — an `upgrade` on a
+postgres service is rejected outright; resize it with `insta db limits` and grow its disk with
+`insta db volume`.
 
 ## Pausing & resuming compute
 
