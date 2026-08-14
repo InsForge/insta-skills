@@ -27,7 +27,10 @@ service types you build **directly** against:
   `insta db limits`). Plain Postgres: connect any driver/ORM directly with `DATABASE_URL` — no
   vendor SDK or vendor skill. It scales to zero when idle, so keep your pool's
   `idleTimeoutMillis` under the suspend window (see [frameworks.md](references/frameworks.md)).
-- **storage** — S3-compatible object/blob storage.
+- **storage** — S3-compatible object/blob storage. Point any S3 library at the injected `AWS_*` /
+  `BUCKET_NAME` env — no vendor SDK. Set the endpoint explicitly or the client talks to real AWS;
+  each branch normally gets its own forked bucket (legacy pre-snapshot projects share one — see
+  below). See [storage.md](references/storage.md).
 - **compute** — your container(s) at a public URL. A project can have several compute services
   (e.g. `api`, `worker`).
 
