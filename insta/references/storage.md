@@ -62,10 +62,13 @@ rclone copy ./dist insta:$BUCKET_NAME/dist       # with the same key/secret/endp
 
 1. **Forgetting the endpoint.** An S3 client with credentials but no `endpoint` silently talks to
    real AWS and fails on a bucket that isn't yours. This is the single most common mistake.
-2. **Assuming a bucket is shared across branches.** It is not. Each branch gets its **own** bucket
-   (CoW-forked from the parent at `insta branch create`) with its **own** scoped key, so a leaked
-   branch credential cannot reach production data. Read `BUCKET_NAME` from env per branch — never
-   hardcode the name you saw once.
+2. **Assuming a bucket is shared across branches — or assuming it never is.** Normally each branch
+   gets its **own** bucket (CoW-forked from the parent at `insta branch create`) with its **own**
+   scoped key, so a leaked branch credential cannot reach production data. **The exception is a
+   legacy project whose root bucket predates snapshots: it keeps one shared bucket, with no storage
+   isolation at all** — a branch writes straight into production's objects. `insta manifest` shows
+   what a branch really has, and it is the only way to know which case you are in. Either way, read
+   `BUCKET_NAME` from env per branch rather than hardcoding a name you saw once.
 3. **Expecting a branch's files to be promoted.** They are not. `insta branch merge` creates missing
    services on the target **fresh and empty — no data is copied**, the same rule that applies to
    databases. Files uploaded while testing on a branch stay there; extract anything worth keeping

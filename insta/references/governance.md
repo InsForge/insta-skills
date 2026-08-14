@@ -17,6 +17,9 @@ Every sensitive action passes a per-project policy check at the credential bound
 | `deploy` | allow | code reaching compute (and the build-token mint) |
 | `branch.delete` | allow | tearing down an environment |
 | `service.add/remove/scale/upgrade` | allow | resource mutations (scale/upgrade: paid plans) |
+| `storage.read` | allow | listing a bucket, downloading, previewing |
+| `storage.write` | allow | uploading an object |
+| `storage.delete` | allow | removing objects, one or in a batch |
 
 Decisions: `allow` (proceed) · `deny` (hard no) · `approve` (human in the loop).
 
