@@ -51,6 +51,7 @@ branching, governance, operate, mcp.
 | `insta policy get` [`--json`] · `insta policy set <action> <decision>` | view / set governance policy (actions include `service.add/remove/rename/scale/upgrade/setAccess` and `storage.read` / `storage.delete`) |
 | `insta approvals list` [`--status`] · `insta approvals approve <id>` [`--always`] · `insta approvals deny <id>` | manage gated actions |
 | `insta observe install` · `report` [`--json`] · `sync` | local credential-audit hook (see below) |
+| `insta feedback --type <bug\|feature-request\|friction\|other> --component <cli\|mcp\|platform\|skills\|docs\|other> --title <t> --detail <d>` [`--file <path>`] [`--area <a>`] [`--command <c>`] [`--error <e>`] [`--expected <x>`] [`--workaround <w>`] [`--doc <ref>`] [`--severity <blocker\|major\|minor>`] [`--json`] | report an **InstaCloud-side** hurdle to the team (see [Feedback](#feedback)) — never for the user's own app. Works logged-out/unlinked/oss; ungated. Non-TTY with missing flags errors (never prompts); transport failures **exit 0** — continue the task, don't retry |
 | `insta upgrade` · `insta autoupdate [on\|off]` | self-update the CLI (binary re-runs the installer; npm uses `npm i -g`). Auto-update is **on by default** pre-1.0; `autoupdate off` / `INSTA_NO_AUTOUPDATE=1` disables. (CLI ≥ 0.0.5) |
 | `insta setup agent` [`--mcp-token`] | one-step agent onboarding: installs the insta skill user-globally for every coding agent, then registers the **remote MCP server** — Claude Code via `claude mcp add` (user scope) plus a config-file entry for every other detected MCP-capable agent. Default = **OAuth**, no credential written (browser auth on first `/mcp` use); `--mcp-token` = headless fallback that mints a durable `insta_` token named `mcp-<hostname>` (needs `insta login`; Claude Code only). Idempotent; `INSTA_MCP_URL` / `INSTA_SKILLS_REPO` override the URL / skill source. The skill source, the MCP host and its registration name are all resolved from the current **environment**, so a staging machine installs `InsForge/insta-skills#devel` and registers `insta-cloud-staging` → `mcp.staging.instacloud.com` (both environments can coexist on one machine). See [mcp.md](references/mcp.md) and [Environments](#environments) |
 | `insta mcp install` [`--agent <claude-code\|cursor\|codex\|opencode\|copilot\|factory-droid>`] [`--mcp-token`] | register the remote MCP server only (no skill install) — default: Claude Code + all detected agents; `--agent` targets one. Config merges never clobber existing entries; restart the tool afterwards |
@@ -179,6 +180,39 @@ DNS propagates. The domain's DNS lives in your zone — you set it, not InstaClo
 ## Dockerfile templates
 
 Moved to [references/deploy.md](references/deploy.md) (backend / full-stack / SPA patterns).
+
+## Feedback
+
+`insta feedback` reports a hurdle in the **InstaCloud toolkit itself** to the InstaCloud team.
+File it when InstaCloud got in *your* way, then **continue the user's task with a workaround** —
+never block on the report, and never file feedback for problems in the app the user is building.
+
+```bash
+insta feedback --json --type bug --component cli --area deploy \
+  --title "deploy --branch deploys to main" \
+  --detail "insta deploy --branch feat accepted the flag but the release landed on main" \
+  --command "insta deploy . --branch feat --port 8080" \
+  --error "deployed ... (branch main)" \
+  --expected "release lands on branch feat, per this reference" \
+  --doc "skills/insta/cli-reference.md" --workaround "insta branch switch feat, then deploy"
+```
+
+Situation → `--type`:
+
+- **"This should work (per docs / the stated contract), but doesn't"** → `bug`.
+- **"I was instructed to do X, but reality required Y"** → also `bug`, **with `--doc` +
+  `--expected` + `--workaround`** — you can't know whether the instructions are stale or the
+  product regressed, and those three fields let the team disambiguate.
+- **"What I need is not supported"** → `feature-request`.
+- **"Works, but confusing or awkward"** → `friction`.
+
+`--component` is which piece of the toolkit (`cli|mcp|platform|skills|docs|other`); `--area` is
+the product domain (deploy, branch, secrets, db, storage, compute, governance, billing, …). Free
+text is **redacted locally** (tokens, emails, home paths) before sending and re-scrubbed
+server-side; repeat reports of the same title within a week **fold into one record**
+(`status: duplicate`). Project/org/branch context, CLI version, and OS attach automatically when
+available. Via MCP: the `insta_feedback` tool takes the same fields (plus explicit
+`projectId`/`branch`).
 
 ## Govern & observe
 

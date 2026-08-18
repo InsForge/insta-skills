@@ -205,6 +205,7 @@ usually enough, two at most:
 | Check health or debug failures | [operate.md](references/operate.md) | status/manifest triage, ordered deploy-failure list, metrics/logs, cloud-vs-oss differences |
 | Command lookup | [cli-reference.md](cli-reference.md) | the full CLI catalog with flags and gates |
 | Remote MCP tools ("connect a connector", `insta_*` tools available) | [mcp.md](references/mcp.md) | connecting clients, tool ↔ CLI mapping, what stays CLI-only |
+| InstaCloud itself got in your way (bug, stale doc, missing feature, friction) | [cli-reference.md → Feedback](cli-reference.md#feedback) | `insta feedback` / `insta_feedback`: when to file, situation → type mapping |
 
 If a request spans two areas ("deploy and check it's healthy"), load both and answer once.
 
@@ -237,6 +238,16 @@ create) trades a small continuous RAM cost for zero cold starts — see
 at the minimum of both and get a 403 — `insta billing upgrade` first; `insta usage` /
 `insta billing` show cycle usage and cost. One free org per user. Full flags in
 [cli-reference.md](cli-reference.md).
+
+## When InstaCloud itself gets in your way (feedback)
+
+If you hit a hurdle that is **InstaCloud's fault** — a command that violates its documented
+contract, skill/doc text that doesn't match reality, a missing capability, confusing UX — report
+it with `insta feedback` (or the `insta_feedback` MCP tool), **then continue the user's task with
+a workaround**. Never block on the report, and **never file feedback for problems in the app the
+user is building** — this channel is only for the InstaCloud toolkit
+(`--component cli|mcp|platform|skills|docs`). Full flags and the situation → type mapping:
+[cli-reference.md → Feedback](cli-reference.md#feedback).
 
 ## Response format
 
