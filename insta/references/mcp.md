@@ -87,6 +87,7 @@ server is stateless, there is no "current project" like `./.insta/project.json`.
 | `insta usage` / `billing` | `insta_usage` / `insta_billing_summary` |
 | `insta billing upgrade/portal` | `insta_billing_checkout` / `insta_billing_portal` — return a Stripe **URL for the human**; relay it, never claim payment happened |
 | `insta govern …` (policy/approvals) | `insta_policy_get` / `insta_approvals_list` / `insta_approvals_approve` / `insta_approvals_deny` |
+| `insta feedback` | `insta_feedback` (same fields; pass `projectId`/`branch` explicitly — see [cli-reference.md → Feedback](../cli-reference.md#feedback)) |
 
 ## Behavior that carries over from the CLI
 
