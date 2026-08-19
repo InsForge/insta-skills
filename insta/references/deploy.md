@@ -12,6 +12,11 @@ insta deploy <dir> --port <n>                     # source dir — REQUIRES a Do
 
 Targets the **current branch's** sole compute service by default; the URL prints on success.
 
+Before source deploys, run `insta build <dir> --port <n>`. It is local/offline and catches the
+common failures before the remote build: missing Dockerfile/start command, wrong or undetected port,
+unexpected `.env.example` keys, and an oversized Docker context. Use `--explain` to see the
+Dockerfile that would be used; use `--json` when an agent needs structured output.
+
 Never run a bare `insta deploy <dir>` and assume the port: without `--port` older CLIs default
 to 8080 regardless of the Dockerfile (boots "fine", every request refused — see below). Newer
 CLIs default from the Dockerfile's `EXPOSE` and print what they picked — read that line and
@@ -36,9 +41,27 @@ clones keep the listen port and shift the **host** mapping +1000.
 
 ## Secrets at runtime
 
-Secrets are **injected at deploy** as env vars (decrypted for that branch — platform creds + your
-`insta secrets set` values). Production code reads `process.env`; **never bake `./.env` into the
-image** (it's local-dev only). Changing a secret takes effect on the **next deploy** — no hot reload.
+Compute env is explicit. At deploy, the platform injects:
+
+- `PORT`
+- user-defined secrets visible to that compute service (`insta secrets set`, project/branch or
+  compute-scoped)
+- provider credentials you explicitly bound with `insta secrets bind`
+
+Provider-minted credentials are **not** injected just because the project has a postgres, redis,
+mysql, mongodb, or storage service. Bind each credential the app needs, then deploy/redeploy:
+
+```bash
+insta secrets sources --branch main
+insta secrets bind DATABASE_URL postgres/db --to compute/app --branch main
+insta secrets bind REDIS_URL redis/cache --source-name REDIS_URL --to compute/app --branch main
+insta deploy . --branch main --group app --port 8080
+```
+
+If the source has a single credential (`postgres`), `--source-name` is optional. Sources with several
+credential names (`storage`, `redis`, `mysql`, `mongodb`) need `--source-name`. Production code reads
+`process.env`; **never bake `./.env` into the image** (it's local-dev/user-secrets only). Changing a
+secret or binding takes effect on the **next deploy** — no hot reload.
 
 ## Verify before reporting (non-negotiable)
 
