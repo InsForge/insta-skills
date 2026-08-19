@@ -182,8 +182,8 @@ insta secrets set NAME value                 # user config (project-wide; --bran
 insta deploy . --port 8080                   # build (Dockerfile) + deploy to the current branch
 insta deploy --image <ref> --port 8080       # prebuilt image instead
 insta branch create feat && insta branch list --json
-insta logs compute --limit 100 --json        # runtime logs (--branch <b>; db is provider-limited)
-insta metrics compute --json                 # service metrics
+insta logs compute --limit 100 --json        # runtime logs (--branch <b>; also redis|mysql|mongodb; db is provider-limited)
+insta metrics compute --json                 # service metrics (also redis|mysql|mongodb)
 insta events --limit 50 --json               # audit + agent-event timeline
 insta usage --json                           # cloud only (insta billing --json likewise)
 insta approvals list --status pending        # outstanding gates
