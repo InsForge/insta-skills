@@ -55,7 +55,7 @@ branching, governance, operate, mcp.
 | `insta observe install` · `report` [`--json`] · `sync` | local credential-audit hook (see below) |
 | `insta feedback --type <bug\|feature-request\|friction\|other> --component <cli\|mcp\|platform\|skills\|docs\|other> --title <t> --detail <d>` [`--file <path>`] [`--area <a>`] [`--command <c>`] [`--error <e>`] [`--expected <x>`] [`--workaround <w>`] [`--doc <ref>`] [`--severity <blocker\|major\|minor>`] [`--json`] | report an **InstaCloud-side** hurdle to the team (see [Feedback](#feedback)) — never for the user's own app. Works logged-out/unlinked/oss; ungated. Non-TTY with missing flags errors (never prompts); transport failures **exit 0** — continue the task, don't retry |
 | `insta upgrade` · `insta autoupdate [on\|off]` | self-update the CLI (binary re-runs the installer; npm uses `npm i -g`). Auto-update is **on by default** pre-1.0; `autoupdate off` / `INSTA_NO_AUTOUPDATE=1` disables. (CLI ≥ 0.0.5) |
-| `insta setup agent` [`--mcp-token`] | one-step agent onboarding: installs the insta skill user-globally for every coding agent, then registers the **remote MCP server** — Claude Code via `claude mcp add` (user scope) plus a config-file entry for every other detected MCP-capable agent. Default = **OAuth**, no credential written (browser auth on first `/mcp` use); `--mcp-token` = headless fallback that mints a durable `insta_` token named `mcp-<hostname>` (needs `insta login`; Claude Code only). Idempotent; `INSTA_MCP_URL` / `INSTA_SKILLS_REPO` override the URL / skill source. The skill source, the MCP host and its registration name are all resolved from the current **environment**, so a staging machine installs `InsForge/insta-skills#devel` and registers `insta-cloud-staging` → `mcp.staging.instacloud.com` (both environments can coexist on one machine). See [mcp.md](references/mcp.md) and [Environments](#environments) |
+| `insta setup agent` [`--mcp-token`] | one-step agent onboarding: **self-installs the CLI globally first** when running from the npx cache with no durable `insta` on PATH (`npm i -g insta@<running version>`; best-effort — a failed install prints the manual fallback and setup continues; CLI ≥ 0.0.37), making `npx -y insta setup agent` a complete cross-platform one-liner (bash / zsh / PowerShell / cmd); then installs the insta skill user-globally for every coding agent, then registers the **remote MCP server** — Claude Code via `claude mcp add` (user scope) plus a config-file entry for every other detected MCP-capable agent. Default = **OAuth**, no credential written (browser auth on first `/mcp` use); `--mcp-token` = headless fallback that mints a durable `insta_` token named `mcp-<hostname>` (needs `insta login`; Claude Code only). Idempotent; `INSTA_MCP_URL` / `INSTA_SKILLS_REPO` override the URL / skill source. The skill source, the MCP host and its registration name are all resolved from the current **environment**, so a staging machine installs `InsForge/insta-skills#devel` and registers `insta-cloud-staging` → `mcp.staging.instacloud.com` (both environments can coexist on one machine). See [mcp.md](references/mcp.md) and [Environments](#environments) |
 | `insta mcp install` [`--agent <claude-code\|cursor\|codex\|opencode\|copilot\|factory-droid>`] [`--mcp-token`] | register the remote MCP server only (no skill install) — default: Claude Code + all detected agents; `--agent` targets one. Config merges never clobber existing entries; restart the tool afterwards |
 
 `DATABASE_URL` + compute + storage (`AWS_*` / `BUCKET_NAME`) are **per-branch** (new projects: each
@@ -108,12 +108,19 @@ session and you log in again. Default is `prod`; nothing changes unless you swit
 | CLI channel | latest stable release | newest prerelease (`v*-rc.N`), else stable |
 
 Install one-liners — each installs a complete stack for its environment (CLI build, control plane,
-MCP registration, and skill text all match):
+MCP registration, and skill text all match). The npx form works on **every OS and shell** (Node
+18+; CLI ≥ 0.0.37 self-installs globally); the curl form is the no-Node native-binary path for
+macOS/Linux only — **never run it on native Windows**, where PowerShell's `curl` alias and the WSL
+`bash` shim break it:
 
 ```bash
-curl -fsSL agents.instacloud.com | sh            # production
+npx -y insta setup agent                         # production (any OS)
+curl -fsSL agents.instacloud.com | sh            # production (macOS/Linux, no Node needed)
 curl -fsSL agents.staging.instacloud.com | sh    # staging
 ```
+
+Staging via npx: `npm i -g insta`, `insta env use staging`, then `insta setup agent` — the env must
+be switched **before** `setup agent` so the skill text and MCP registration come from staging.
 
 > **`agents.staging.instacloud.com` is not live yet** (its DNS/CloudFront ships separately). Until
 > it resolves, use the raw URL, which is exactly what the short host will serve:
