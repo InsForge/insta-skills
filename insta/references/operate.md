@@ -89,6 +89,26 @@ require no approval. A billing suspension is separate: you can't `start` while a
 suspended, and a manual `stop` is preserved across a billing pause/resume cycle. A billing
 suspension force-stops always-on machines too — pinned-warm does not outlive the org's credit.
 
+## Running a one-shot command on a compute machine
+
+`insta compute exec [service] -- <command> [args...]` runs a single command on the service's live
+machine and returns — **no interactive shell, no stdin**. Use it for a one-off migration, a debug
+`ls`/`cat`, or confirming a process is actually up.
+
+- A **scaled-to-zero machine wakes first** — adds a few seconds, and that wake time bills as normal
+  compute uptime, same as any other request.
+- `--timeout <sec>` bounds the run, **1–300s** (default 30); the remote command is killed if it
+  doesn't finish in time.
+- The CLI's **exit code is the remote command's exit code** — safe to check in a script (`&&`,
+  `$?`). stdout/stderr stream to their own local streams verbatim; each is capped at **1 MiB**, with
+  a truncation notice on stderr if hit. `--json` returns the raw response instead of split streams.
+- Gated on **both** `deploy` and `secrets.read` — a deny on either is a 403; an approve on either
+  triggers the usual relay (`insta approvals approve <id>`; see governance.md).
+- A compute service with no image ever deployed 400s ("this service has no machines yet — deploy an
+  image first, then retry") — `insta deploy` it, then retry.
+
+`[service]` is optional under the same rule as `start`/`stop`/`status` above.
+
 ## Deploy triage (URL not serving after deploy)
 
 Work the list in order — these cover ~all real failures seen so far:

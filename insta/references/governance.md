@@ -12,9 +12,9 @@ Every sensitive action passes a per-project policy check at the credential bound
 | Action | Default | Guards |
 | --- | --- | --- |
 | `project.delete` | **approve** | destroying every resource |
-| `secrets.read` | allow | the credential bundle leaving the platform |
+| `secrets.read` | allow | the credential bundle leaving the platform; also gates `compute exec`, paired with `deploy` |
 | `secrets.write` | allow | user-secret changes |
-| `deploy` | allow | code reaching compute (and the build-token mint) |
+| `deploy` | allow | code reaching compute (and the build-token mint); also gates `compute exec`, paired with `secrets.read` |
 | `branch.delete` | allow | tearing down an environment |
 | `service.add/remove/scale/upgrade` | allow | resource mutations (scale/upgrade: paid plans) |
 | `storage.read` | allow | listing a bucket, downloading, previewing |
@@ -22,6 +22,10 @@ Every sensitive action passes a per-project policy check at the credential bound
 | `storage.delete` | allow | removing objects, one or in a batch |
 
 Decisions: `allow` (proceed) · `deny` (hard no) · `approve` (human in the loop).
+
+`insta compute exec` is the one command gated on **two** actions at once (`deploy` **and**
+`secrets.read`) — a `deny` on either is a 403, and an `approve` on either needs its own relay before
+the command proceeds.
 
 ```bash
 insta policy get --json
