@@ -36,10 +36,10 @@ branching, governance, operate, mcp.
 | `insta secrets tree` [`--json`] | the whole project as `project → branch → service → secrets` (names only) |
 | `insta secrets set <NAME> [value] [--branch <b>] [--service <compute/name>]` | Set a user secret (project-wide by default; value from stdin if omitted). `--service` scopes it to that branch's compute service (e.g. `compute/api`) — binding **requires a branch** (defaults to the current branch when `--service` is given); omit `--service` for an unbound secret (as before) |
 | `insta secrets unset <NAME> [--branch <b>]`       | Remove a user secret |
-| `insta secrets sources` [`--branch <b>`] [`--json`] | List provider credential sources available for explicit compute binding, e.g. `postgres/use1: DATABASE_URL` or `redis/redis1: REDIS_URL, ...` (names only; gated: `secrets.read`) |
-| `insta secrets bind <ENV_NAME> <source>` [`--source-name <name>`] `--to <compute/name>` [`--branch <b>`] [`--json`] | Bind one provider credential from `<source>` (`postgres/use1`, `redis/redis1`, `mysql/m1`, `mongodb/m2`, `storage/assets`, …) into a compute service's runtime env var. `--source-name` is required when the source exposes multiple credential names. Takes effect on the next deploy/redeploy |
-| `insta secrets bindings --target <compute/name>` [`--branch <b>`] [`--json`] | List provider credential bindings for one compute service |
-| `insta secrets unbind <ENV_NAME> --from <compute/name>` [`--branch <b>`] [`--json`] | Remove one provider credential binding from a compute service; takes effect on the next deploy/redeploy |
+| `insta secrets sources` [`--branch <b>`] [`--json`] | List provider credential sources available for explicit compute binding, e.g. `postgres/db: DATABASE_URL` or `redis/cache: REDIS_URL, ...` (names only; gated: `secrets.read`) |
+| `insta secrets bind <ENV_NAME> <source>` [`--source-name <name>`] `--to <compute/name>` [`--branch <b>`] [`--json`] | Bind one provider credential from `<source>` (`postgres/db`, `redis/cache`, `mysql/orders`, `mongodb/catalog`, `storage/assets`, …) into a compute service's runtime env var. `--source-name` is required when the source exposes multiple credential names. Takes effect on the next deploy/redeploy (gated: `secrets.write`) |
+| `insta secrets bindings --target <compute/name>` [`--branch <b>`] [`--json`] | List provider credential bindings for one compute service (names only; gated: `secrets.read`) |
+| `insta secrets unbind <ENV_NAME> --from <compute/name>` [`--branch <b>`] [`--json`] | Remove one provider credential binding from a compute service; takes effect on the next deploy/redeploy (gated: `secrets.write`) |
 | `insta build [dir]` [`--explain`] [`--port <n>`] [`--json`] | **verify before you deploy** — local, offline, deploys nothing, needs no login: prints the detection plan (builder, install/build/start commands, port **with the reason it was chosen**, `.env.example` keys), the Dockerfile that would be used (yours, or nixpacks-generated **if nixpacks is installed** — never auto-installed; without it the command degrades to Dockerfile-only checks and the report says how to install; `--explain` includes its content), and static checks each with a next action (missing Dockerfile/start command, port mismatch, `node_modules` shipping in the build context). Exits 1 when the verdict is `failed`. Run it before `insta deploy <dir>` instead of finding out from a burned remote build |
 | `insta deploy <dir>` / `--image <url>` [`--branch <b>`] [`--group <g>`] [`--port <n>`] | deploy to a compute service — a **source dir** (needs a `Dockerfile`; on InstaCloud it builds remotely on Fly — no local Docker; against a local insta-oss daemon the CLI builds with your local docker instead, same command) or a **prebuilt image**. Defaults to the branch's sole compute service; `--group` picks by name (gated: `deploy`) |
 | `insta compute set-domain <host>` / `check-domain <host>` / `remove-domain <host>` [`--branch --group --json`] | attach / check / detach a **developer-owned custom domain** on a compute service — Fly issues the cert + routes; prints the DNS records to set in **your own** registrar (set/remove gated: `deploy`) |
@@ -69,16 +69,19 @@ created them with canonical names (`DATABASE_URL`, `REDIS_URL`, `MYSQL_URL`, `MO
 bindings:
 
 ```bash
-insta secrets sources --branch main
-insta secrets bind DATABASE_URL postgres/use1 --to compute/compute1 --branch main
-insta secrets bind REDIS_URL redis/redis1 --source-name REDIS_URL --to compute/compute1 --branch main
-insta secrets bindings --target compute/compute1 --branch main
-insta deploy . --branch main --group compute1 --port 8080
+insta secrets sources
+insta secrets bind DATABASE_URL postgres/db --to compute/app
+insta secrets bind REDIS_URL redis/cache --source-name REDIS_URL --to compute/app
+insta secrets bindings --target compute/app
+insta deploy . --group app --port 8080
 ```
 
 If a source exposes exactly one credential (`postgres` → `DATABASE_URL`), `--source-name` is
 optional. If it exposes several (`storage`, `redis`, `mysql`, `mongodb`), pass the source credential
-name to bind. Binding overwrites the target env var's previous binding; it does not expose plaintext.
+name to bind. Binding overwrites the target env var's previous binding; an env name that collides
+with a user secret visible to the same compute service is rejected (409). It does not expose
+plaintext — credential **values** never leave the platform via the CLI; anything that needs them
+runs where they are bound (the deployed app, or `insta compute exec`).
 Changes apply on the next deploy/redeploy — no hot reload. A project may have **multiple services of
 every type**, up to `INSTA_MAX_SERVICES_PER_TYPE` (default 5) per type.
 

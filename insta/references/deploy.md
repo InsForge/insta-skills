@@ -52,16 +52,21 @@ Provider-minted credentials are **not** injected just because the project has a 
 mysql, mongodb, or storage service. Bind each credential the app needs, then deploy/redeploy:
 
 ```bash
-insta secrets sources --branch main
-insta secrets bind DATABASE_URL postgres/db --to compute/app --branch main
-insta secrets bind REDIS_URL redis/cache --source-name REDIS_URL --to compute/app --branch main
-insta deploy . --branch main --group app --port 8080
+insta secrets sources
+insta secrets bind DATABASE_URL postgres/db --to compute/app
+insta secrets bind REDIS_URL redis/cache --source-name REDIS_URL --to compute/app
+insta deploy . --group app --port 8080
 ```
 
 If the source has a single credential (`postgres`), `--source-name` is optional. Sources with several
 credential names (`storage`, `redis`, `mysql`, `mongodb`) need `--source-name`. Production code reads
 `process.env`; **never bake `./.env` into the image** (it's local-dev/user-secrets only). Changing a
 secret or binding takes effect on the **next deploy** — no hot reload.
+
+Provider credential **values** never leave the platform via the CLI (`insta secrets` / `insta run`
+carry only user-defined secrets). Anything that needs the values runs where they are bound: the
+deployed app itself, or a one-shot `insta compute exec app -- <cmd>` (≤180s, no stdin) — which is
+also how migrations run (never as a startup gate; see the gotchas below).
 
 ## Verify before reporting (non-negotiable)
 
