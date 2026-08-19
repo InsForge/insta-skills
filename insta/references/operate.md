@@ -18,7 +18,9 @@ deployed).
 ```bash
 insta metrics compute [group] [--branch --from --to --step --json]
 insta logs compute [group] [--branch --limit --region --instance --json]
-insta metrics db · insta logs db      # provider-limited: returns a note, not series
+insta metrics redis|mysql|mongodb [group]   # managed DBs are Fly apps: same full metrics/logs
+insta logs redis|mysql|mongodb [group] [--deploy]
+insta metrics db · insta logs db      # postgres: provider-limited — returns a note, not series
 ```
 
 insta-oss: metrics/logs return a clear "cloud-only / coming" 501 today — use `docker logs`/`docker

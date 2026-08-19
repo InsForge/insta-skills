@@ -44,8 +44,8 @@ branching, governance, operate, mcp.
 | `insta compute always-on on\|off [service]` [`--branch --json`] | idle-mode dial: `on` = machines never scale to zero (no cold starts; idle RAM bills at actual usage), `off` = default scale-to-zero (idle costs ~nothing, first request cold-starts). All plans; billing is actual usage either way |
 | `insta db always-on on\|off` [`--branch --group --json`] | same dial for a postgres service: `off` (default) suspends the idle instance — first connection after idle cold-starts; `on` keeps it warm |
 | `insta manifest` [`--json`] | agent-legible env view: each branch's db / storage / compute + URLs |
-| `insta metrics <db\|compute>` [`group`] [`--branch --from --to --step --json`] | service metrics (compute=Fly; db=provider-limited) |
-| `insta logs <db\|compute>` [`group`] [`--branch --limit --region --instance --deploy --json`] | logs (compute=Fly; db=provider-limited); `--deploy` shows compute **deploy events** (Fly machine lifecycle: created/started/…) instead of runtime logs (compute-only) |
+| `insta metrics <db\|compute\|redis\|mysql\|mongodb>` [`group`] [`--branch --from --to --step --json`] | service metrics (compute + managed DBs=Fly, full; db=provider-limited) |
+| `insta logs <db\|compute\|redis\|mysql\|mongodb>` [`group`] [`--branch --limit --region --instance --deploy --json`] | logs (compute + managed DBs=Fly; db=provider-limited); `--deploy` shows **deploy events** (Fly machine lifecycle: created/started/…) instead of runtime logs — any Fly-backed target, not db |
 | `insta usage` [`--from --to --json`] | usage aggregated by meter, with `costUsd` (snapshotted at collection) |
 | `insta billing` [`--org <id>`] [`--json`] | current cycle summary: tier / included credit / used / overage / status |
 | `insta billing upgrade <pro\|enterprise>` · `insta billing portal` [`--org`] [`--no-open`] [`--json`] | Stripe Checkout to subscribe / Customer Portal to manage (opens a browser; `--no-open` prints the URL) |
