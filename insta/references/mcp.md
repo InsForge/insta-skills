@@ -83,6 +83,7 @@ server is stateless, there is no "current project" like `./.insta/project.json`.
 | `insta branch create/list/merge/delete` | `insta_branch_create` / `insta_branch_list` / `insta_branch_merge` / `insta_branch_delete` |
 | `insta manifest` | `insta_manifest` (env view — **no secret values**) |
 | `insta secrets list/set/unset` | `insta_secrets_list` (names only) / `insta_secrets_set` / `insta_secrets_unset` |
+| `insta secrets sources/bindings/bind/unbind` | `insta_secret_sources` / `insta_secret_bindings` / `insta_secret_bind` / `insta_secret_unbind` (provider credential binding; names only, no secret values) |
 | `insta deploy --image <url>` | `insta_deploy` (image-only) |
 | `insta metrics/logs/events` | `insta_metrics` / `insta_logs` / `insta_events` |
 | `insta usage` / `billing` | `insta_usage` / `insta_billing_summary` |

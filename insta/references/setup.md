@@ -81,9 +81,10 @@ insta services add compute api       # your container; add more groups: worker, 
 insta services list --json
 ```
 
-Up to 5 services per type. Credentials are minted per service — `DATABASE_URL_<NAME>`,
-`BUCKET_NAME_<NAME>`, … (name upper-snaked); the oldest of each type also gets the plain
-unsuffixed names, so single-service projects use `DATABASE_URL` as usual.
+Up to 5 services per type. Provider credentials are minted under the service that owns them with
+canonical names (`DATABASE_URL`, `BUCKET_NAME`, `AWS_ACCESS_KEY_ID`, `REDIS_URL`, `MYSQL_URL`,
+`MONGODB_URL`, …). They are not exported by `insta secrets` and are not injected into compute until
+you bind them to a compute service with `insta secrets bind`.
 
 ## Ship-from-zero (the whole chain)
 
@@ -92,6 +93,6 @@ insta status                       # target + auth + link in one look
 insta login …                      # cloud only, if needed
 insta project create myapp
 insta services add postgres db && insta services add compute app   # cloud; oss has db+storage already
-insta secrets                      # writes ./.env for local dev
+insta secrets bind DATABASE_URL postgres/db --to compute/app
 insta deploy . --port 8080         # or --image <ref>; then VERIFY the URL (see operate.md)
 ```

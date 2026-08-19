@@ -1,13 +1,13 @@
 # Storage buckets
 
 `insta services add storage <name>` gives the branch a **private, S3-compatible bucket**. There is
-no vendor SDK and no InstaCloud storage client — point any S3 library at the injected credentials
-and it works. This page is the part that isn't obvious: how bytes actually get in and out, and the
+no vendor SDK and no InstaCloud storage client — point any S3 library at the bound credentials and
+it works. This page is the part that isn't obvious: how bytes actually get in and out, and the
 handful of things that bite first.
 
 ## What you get
 
-Adding the service injects these into every compute service on the branch:
+Adding the service mints these credentials under the storage service:
 
 | Variable | Example |
 | --- | --- |
@@ -17,9 +17,18 @@ Adding the service injects these into every compute service on the branch:
 | `AWS_ENDPOINT_URL_S3` | `https://t3.storage.dev` |
 | `AWS_REGION` | `auto` |
 
-With several storage services, each one's names are suffixed — `BUCKET_NAME_ASSETS`,
-`AWS_ACCESS_KEY_ID_ASSETS`, … — and the **oldest** service of the type also gets the plain names, so
-single-service projects work unchanged. Never bake these into an image; they arrive as env.
+They do **not** automatically appear in every compute service. Bind the names your app needs into
+the target compute service, then deploy/redeploy:
+
+```bash
+insta secrets bind BUCKET_NAME storage/files --source-name BUCKET_NAME --to compute/app
+insta secrets bind AWS_ACCESS_KEY_ID storage/files --source-name AWS_ACCESS_KEY_ID --to compute/app
+insta secrets bind AWS_SECRET_ACCESS_KEY storage/files --source-name AWS_SECRET_ACCESS_KEY --to compute/app
+insta secrets bind AWS_ENDPOINT_URL_S3 storage/files --source-name AWS_ENDPOINT_URL_S3 --to compute/app
+insta secrets bind AWS_REGION storage/files --source-name AWS_REGION --to compute/app
+```
+
+Never bake these into an image; after binding, they arrive as runtime env on deploy.
 
 ## Writing and reading objects
 

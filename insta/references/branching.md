@@ -10,14 +10,22 @@ branch does **not** appear on any other branch, including its parent. `insta bra
 the parent's current services at creation time (below); after that, the two branches' catalogs
 diverge independently — adding, removing, or scaling a service on one has no effect on the other.
 
-**Secrets belong to services.** The full view is `project → branch → service → secrets`
-(`insta secrets tree`; a branch's slice is `insta secrets list`). Provider-minted credentials
-(`DATABASE_URL_<NAME>`, `BUCKET_NAME_<NAME>`, …) are already bound to the service that produced
-them; you can bind your own with `insta secrets set <NAME> --service <type/name>` (binding requires
-a branch — it defaults to the current one). Binding is **metadata only**: the secret's name/value
-and the `.env` bundle are unchanged, it just records which service the secret belongs to for
-visibility and lifecycle — and **removing a service deletes the secrets bound to it** (unbound and
-project-wide secrets are untouched).
+**Secrets and compute env are explicit.** The full names-only inventory is
+`project → branch → service → secrets` (`insta secrets tree`; a branch's slice is
+`insta secrets list`). Provider-minted credentials live under the service that produced them with
+canonical names (`DATABASE_URL`, `REDIS_URL`, `MYSQL_URL`, `MONGODB_URL`, `AWS_*`,
+`BUCKET_NAME`, …), but they do **not** automatically enter `insta secrets`, `insta run`, or compute
+deployments. Bind the provider credentials each compute service needs:
+
+```bash
+insta secrets sources --branch feat-x
+insta secrets bind DATABASE_URL postgres/db --to compute/app --branch feat-x
+insta secrets bindings --target compute/app --branch feat-x
+```
+
+`insta secrets set <NAME> --service compute/app` scopes a **user-defined** secret to that compute
+service. It is separate from provider credential binding (`insta secrets bind`). Removing a service
+deletes secrets and bindings scoped to it; unbound and project-wide secrets are untouched.
 
 ## What `insta branch create <name>` actually clones
 
@@ -26,7 +34,7 @@ project-wide secrets are untouched).
 | postgres (each) | copy-on-write DB branch | **the parent's data**, isolated — writes never touch the parent |
 | storage (each) | copy-on-write bucket fork | **the parent's objects**, isolated |
 | compute (each group) | a fresh isolated app + URL per group | **infrastructure only — no code running yet (cloud)** |
-| user secrets | parent's branch-scoped `secrets set` values | copied to the new branch |
+| user secrets + compute credential bindings | parent's branch-scoped `secrets set` values and `secrets bind` rules | copied to the new branch with service ids remapped |
 
 Two consequences to internalize:
 
@@ -44,7 +52,8 @@ scales to zero when idle on every branch — `main` included (a cost lever; comp
 ```bash
 insta branch create feat-x [--from <parent>]   # isolated env, parent's data
 insta branch switch feat-x                     # per-directory current branch
-insta secrets                                  # ./.env now points at feat-x's copies
+insta secrets bindings --target compute/app    # confirm inherited compute credential bindings
+insta secrets                                  # writes user-defined secrets, if any
 insta deploy . --port 8080                     # put the code on feat-x's compute
 # → test against the printed URL (public; verify per deploy.md), iterate freely —
 #   nothing you do here (schema, data, deploys) can touch main

@@ -20,8 +20,10 @@ Every recipe below encodes these. If you hand-write a Dockerfile, get all four r
 4. **Build only what runs.** Multi-stage: build in one layer, copy just the runtime output into a
    slim final image. Keeps images small and start fast.
 
-Credentials always arrive via injected env (`DATABASE_URL`, `BUCKET_NAME`, the `AWS_*` S3 bundle,
-plus your `insta secrets set` values) — never bake them into the image.
+Credentials arrive via injected env only after they are visible to the compute service: user config
+from `insta secrets set`, plus provider credentials you explicitly bind with `insta secrets bind`
+(`DATABASE_URL`, `BUCKET_NAME`, the `AWS_*` S3 bundle, `REDIS_URL`, `MYSQL_URL`, `MONGODB_URL`, …).
+Never bake them into the image.
 
 ## Next.js (App Router or Pages) — the common case
 

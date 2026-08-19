@@ -14,9 +14,9 @@ branching, governance, operate, mcp.
 | `insta project create <name>` [`--org <id>`] | create an **empty** project (no services), link this dir |
 | `insta project list` [`--org`] [`--json`] · `insta project link <id>` | list / link existing |
 | `insta project delete` | tear down ALL resources + unlink (gated: `project.delete`, approval by default) |
-| `insta services add <postgres\|storage\|compute> <name>` [`--branch <b>`] [`--region <r>`] [`--image <url>`] [`--port <n>`] [`--always-on`] [`--volume <gi>`] [`--json`] | provision a service **on a branch** (default: current/linked branch) — services are **branch-scoped**: adding one on a branch does not add it to any other branch; postgres/compute get a default access domain (gated: `service.add`). **compute only:** `--image` runs that image immediately at creation (otherwise compute starts as an empty, unreachable app until `insta deploy`); `--port` sets the listening port (default `8080`); `--always-on` creates it pinned-warm (never scales to zero — all plans, billing is actual usage either way); `--volume <gi>` attaches a persistent `/data` volume (also attachable later via `insta compute volume --size` — see [Volumes](#volumes)). The image is **persisted** on the service — shown in `services list`, re-run when the branch is forked, and updated later via `insta deploy --image`. Both positional arguments are optional in the parser: a **terminal** given **no type** picks from the same four kinds the dashboard's Add Service menu offers — **Docker Image** (asks for the ref, suggests a name from it, then the port), **Postgres** (`main-db`), **Storage** (`assets`), **Empty Service** (`compute`) — and is asked for a name after; given a **type but no name**, only the name is asked, for that type's plain kind. **Anything without a TTY errors and creates nothing** — with no type, all four kinds, each printed as the command to run instead (Docker Image as `insta services add compute <name> --image <ref> --port <n>`); with a type but no name, that kind's naming usage — so always pass both here. Docker Image is a *kind*, not a follow-up question: non-interactively it is just `--image` on a compute service. `--json` prints the created service object (id, type, name, domain, region, …) instead of the human line, and opts out of the prompts, so a missing positional errors the same way even on a terminal |
+| `insta services add <postgres\|storage\|compute\|redis\|mysql\|mongodb> <name>` [`--branch <b>`] [`--region <r>`] [`--image <url>`] [`--port <n>`] [`--always-on`] [`--volume <gi>`] [`--json`] | provision a service **on a branch** (default: current/linked branch) — services are **branch-scoped**: adding one on a branch does not add it to any other branch; postgres/compute get a default access domain (gated: `service.add`). **compute only:** `--image` runs that image immediately at creation (otherwise compute starts as an empty, unreachable app until `insta deploy`); `--port` sets the listening port (default `8080`); `--always-on` creates it pinned-warm (never scales to zero — all plans, billing is actual usage either way); `--volume <gi>` attaches a persistent `/data` volume (also attachable later via `insta compute volume --size` — see [Volumes](#volumes)). The image is **persisted** on the service — shown in `services list`, re-run when the branch is forked, and updated later via `insta deploy --image`. Both positional arguments are optional in the parser: a **terminal** given **no type** picks from the same four kinds the dashboard's Add Service menu offers — **Docker Image** (asks for the ref, suggests a name from it, then the port), **Postgres** (`main-db`), **Storage** (`assets`), **Empty Service** (`compute`) — and is asked for a name after; given a **type but no name**, only the name is asked, for that type's plain kind. **Anything without a TTY errors and creates nothing** — with no type, all four kinds, each printed as the command to run instead (Docker Image as `insta services add compute <name> --image <ref> --port <n>`); with a type but no name, that kind's naming usage — so always pass both here. Docker Image is a *kind*, not a follow-up question: non-interactively it is just `--image` on a compute service. `--json` prints the created service object (id, type, name, domain, region, …) instead of the human line, and opts out of the prompts, so a missing positional errors the same way even on a terminal |
 | `insta regions` [`--json`] | list regions available for postgres/compute services |
-| `insta services list` [`--json`] [`--branch <b>`] · `insta services rename <type> <name> <new-name>` [`--json`] [`--branch <b>`] · `insta services remove <type> <name>` [`--branch <b>`] | list / rename / remove a branch's services (default: current branch; rename re-keys managed secret names; gated: `service.rename` / `service.remove`) |
+| `insta services list` [`--json`] [`--branch <b>`] · `insta services rename <type> <name> <new-name>` [`--json`] [`--branch <b>`] · `insta services remove <type> <name>` [`--branch <b>`] | list / rename / remove a branch's services (default: current branch; bindings keep pointing at renamed services; gated: `service.rename` / `service.remove`) |
 | `insta services secrets <type> <name>` [`--branch <b>`] [`--json`] | secret **names** bound to one service (e.g. `insta services secrets postgres db`) — default: current branch |
 | `insta services scale compute <name> <number>` [`region`] | set compute machine count — **paid plans only** (free → 403); gated: `service.scale`. `region` is an InstaCloud slug (e.g. `us-east`; see `insta regions`), **not** a raw Fly code |
 | `insta compute limits [service]` [`--memory <size>`] [`--cpu <n>`] [`--branch <b>`] [`--json`] | show or set a compute service's **resource ceiling** — **paid plans**. Bare = read (prints the ceiling **and** the plan max). Setting **requires `--memory`** (`512mb`, `1gb` — decimal `mb/gb` and binary `Mi/Gi` suffixes both accepted); cpu derives from it, and `--cpu` is only an optional override for parallel workloads (never valid alone). Moves **both directions**: billing is actual usage, so the ceiling caps what the app may burn — it is not a price |
@@ -31,11 +31,15 @@ branching, governance, operate, mcp.
 | `insta branch switch <name>` · `insta branch list` [`--json`] | set current branch / list |
 | `insta branch merge <source>` [`--into <target>`] | **structural** merge: creates on the target branch (default: current) every service present on `<source>` but missing there — fresh & **empty, no data copied**. Services the target already has are skipped (reason: `exists`\|`cap`\|`secret-collision`). Additive only — never deletes target services; idempotent |
 | `insta branch delete <name>` | tear down the branch's resources (gated: `branch.delete`) |
-| `insta secrets` [`--branch <name>`] [`-o <file>`] [`--print`] [`--json`] | secret seam → write creds to `./.env` (gated: `secrets.read`) |
+| `insta secrets` [`--branch <name>`] [`-o <file>`] [`--print`] [`--json`] | secret seam → write user-defined project/branch secrets to `./.env`; provider-minted service credentials are **not** exported here (gated: `secrets.read`) |
 | `insta secrets list` [`--branch <b>`] [`--json`] | secret names for the branch, **grouped by service** — each service's bound secrets, plus a branch-level "unbound" group and a project-wide group |
 | `insta secrets tree` [`--json`] | the whole project as `project → branch → service → secrets` (names only) |
-| `insta secrets set <NAME> [value] [--branch <b>] [--service <type/name>]` | Set a user secret (project-wide by default; value from stdin if omitted). `--service` binds it to that branch's service (e.g. `postgres/db`) — binding **requires a branch** (defaults to the current branch when `--service` is given); omit `--service` for an unbound secret (as before) |
+| `insta secrets set <NAME> [value] [--branch <b>] [--service <compute/name>]` | Set a user secret (project-wide by default; value from stdin if omitted). `--service` scopes it to that branch's compute service (e.g. `compute/api`) — binding **requires a branch** (defaults to the current branch when `--service` is given); omit `--service` for an unbound secret (as before) |
 | `insta secrets unset <NAME> [--branch <b>]`       | Remove a user secret |
+| `insta secrets sources` [`--branch <b>`] [`--json`] | List provider credential sources available for explicit compute binding, e.g. `postgres/use1: DATABASE_URL` or `redis/redis1: REDIS_URL, ...` (names only; gated: `secrets.read`) |
+| `insta secrets bind <ENV_NAME> <source>` [`--source-name <name>`] `--to <compute/name>` [`--branch <b>`] [`--json`] | Bind one provider credential from `<source>` (`postgres/use1`, `redis/redis1`, `mysql/m1`, `mongodb/m2`, `storage/assets`, …) into a compute service's runtime env var. `--source-name` is required when the source exposes multiple credential names. Takes effect on the next deploy/redeploy |
+| `insta secrets bindings --target <compute/name>` [`--branch <b>`] [`--json`] | List provider credential bindings for one compute service |
+| `insta secrets unbind <ENV_NAME> --from <compute/name>` [`--branch <b>`] [`--json`] | Remove one provider credential binding from a compute service; takes effect on the next deploy/redeploy |
 | `insta build [dir]` [`--explain`] [`--port <n>`] [`--json`] | **verify before you deploy** — local, offline, deploys nothing, needs no login: prints the detection plan (builder, install/build/start commands, port **with the reason it was chosen**, `.env.example` keys), the Dockerfile that would be used (yours, or nixpacks-generated **if nixpacks is installed** — never auto-installed; without it the command degrades to Dockerfile-only checks and the report says how to install; `--explain` includes its content), and static checks each with a next action (missing Dockerfile/start command, port mismatch, `node_modules` shipping in the build context). Exits 1 when the verdict is `failed`. Run it before `insta deploy <dir>` instead of finding out from a burned remote build |
 | `insta deploy <dir>` / `--image <url>` [`--branch <b>`] [`--group <g>`] [`--port <n>`] | deploy to a compute service — a **source dir** (needs a `Dockerfile`; on InstaCloud it builds remotely on Fly — no local Docker; against a local insta-oss daemon the CLI builds with your local docker instead, same command) or a **prebuilt image**. Defaults to the branch's sole compute service; `--group` picks by name (gated: `deploy`) |
 | `insta compute set-domain <host>` / `check-domain <host>` / `remove-domain <host>` [`--branch --group --json`] | attach / check / detach a **developer-owned custom domain** on a compute service — Fly issues the cert + routes; prints the DNS records to set in **your own** registrar (set/remove gated: `deploy`) |
@@ -58,20 +62,33 @@ branching, governance, operate, mcp.
 | `insta setup agent` [`--mcp-token`] | one-step agent onboarding: installs the insta skill user-globally for every coding agent, then registers the **remote MCP server** — Claude Code via `claude mcp add` (user scope) plus a config-file entry for every other detected MCP-capable agent. Default = **OAuth**, no credential written (browser auth on first `/mcp` use); `--mcp-token` = headless fallback that mints a durable `insta_` token named `mcp-<hostname>` (needs `insta login`; Claude Code only). Idempotent; `INSTA_MCP_URL` / `INSTA_SKILLS_REPO` override the URL / skill source. The skill source, the MCP host and its registration name are all resolved from the current **environment**, so a staging machine installs `InsForge/insta-skills#devel` and registers `insta-cloud-staging` → `mcp.staging.instacloud.com` (both environments can coexist on one machine). See [mcp.md](references/mcp.md) and [Environments](#environments) |
 | `insta mcp install` [`--agent <claude-code\|cursor\|codex\|opencode\|copilot\|factory-droid>`] [`--mcp-token`] | register the remote MCP server only (no skill install) — default: Claude Code + all detected agents; `--agent` targets one. Config merges never clobber existing entries; restart the tool afterwards |
 
-`DATABASE_URL` + compute + storage (`AWS_*` / `BUCKET_NAME`) are **per-branch** (new projects: each
-branch copy-on-write-forks its parent's bucket; a project created before snapshots keeps a **shared** bucket).
-A project may have **multiple services of every type**, up to `INSTA_MAX_SERVICES_PER_TYPE` (default
-5) per type. Minted credentials are named per service (service name upper-snaked): `DATABASE_URL_<NAME>`,
-`BUCKET_NAME_<NAME>`, `AWS_ACCESS_KEY_ID_<NAME>`, etc. The **oldest** service of each type also gets
-the plain unsuffixed names, so single-service projects are unaffected.
+Provider-minted credentials are **per-branch and per-service**. They live under the service that
+created them with canonical names (`DATABASE_URL`, `REDIS_URL`, `MYSQL_URL`, `MONGODB_URL`,
+`AWS_ACCESS_KEY_ID`, `BUCKET_NAME`, …), and **do not automatically appear** in `insta secrets`,
+`insta run`, or a compute deployment. Decide what each compute service should receive with explicit
+bindings:
 
-`insta secrets set <NAME>` / `unset <NAME>` manage **user-defined** secrets — reserved names
-(`DATABASE_URL`, `AWS_*`, `BUCKET_NAME`, and any other live minted credential name) are rejected to
-avoid clobbering platform-managed credentials. Gated: `secrets.write`. Changes apply on the next
-`insta secrets` fetch or the next deploy — no hot reload. `--service` binding is **metadata only** —
-it records which service a secret belongs to but never changes the secret's name/value or the
-`.env` bundle. `secrets list`, `secrets tree`, and `services secrets` are all **names only**; secret
-**values** still come exclusively from `insta secrets` → `.env`.
+```bash
+insta secrets sources --branch main
+insta secrets bind DATABASE_URL postgres/use1 --to compute/compute1 --branch main
+insta secrets bind REDIS_URL redis/redis1 --source-name REDIS_URL --to compute/compute1 --branch main
+insta secrets bindings --target compute/compute1 --branch main
+insta deploy . --branch main --group compute1 --port 8080
+```
+
+If a source exposes exactly one credential (`postgres` → `DATABASE_URL`), `--source-name` is
+optional. If it exposes several (`storage`, `redis`, `mysql`, `mongodb`), pass the source credential
+name to bind. Binding overwrites the target env var's previous binding; it does not expose plaintext.
+Changes apply on the next deploy/redeploy — no hot reload. A project may have **multiple services of
+every type**, up to `INSTA_MAX_SERVICES_PER_TYPE` (default 5) per type.
+
+`insta secrets set <NAME>` / `unset <NAME>` manage **user-defined** secrets. A user secret cannot
+collide with a provider credential binding visible to the same compute service. Gated:
+`secrets.write`. Changes apply on the next
+`insta secrets` fetch or the next deploy — no hot reload. `--service` on `secrets set` scopes a
+user-defined secret to a branch compute service; it is separate from provider credential binding
+(`secrets bind`). `secrets list`, `secrets tree`, `services secrets`, `secrets sources`, and
+`secrets bindings` are all **names only**.
 
 ## Volumes
 
@@ -165,9 +182,10 @@ insta deploy --image <url> --port <n>      # or deploy a pre-built / already-pus
 
 `--port` must match the port the image actually listens on (`ENV PORT` / `EXPOSE` / server bind) — a
 mismatch boots fine but every request fails with `instance refused connection on 0.0.0.0:<port>`.
-Secrets are **injected at deploy** as env vars (decrypted from the branch). Read creds from
-`process.env` in production; **never bake `./.env` into the image**. A compute service serves one app
-on one port at `https://<app>.fly.dev`.
+At deploy, compute receives `PORT`, user-defined secrets visible to that compute service, and
+provider credentials you explicitly bound with `insta secrets bind`. It does **not** receive every
+platform credential by default. Read env vars from `process.env` in production; **never bake
+`./.env` into the image**. A compute service serves one app on one port at `https://<app>.fly.dev`.
 
 **Custom domain (bring your own):** `insta compute set-domain app.example.com` attaches your own
 domain to a branch's compute service and prints the DNS records to add **at your registrar** (a
