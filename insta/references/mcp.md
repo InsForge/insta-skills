@@ -78,6 +78,7 @@ server is stateless, there is no "current project" like `./.insta/project.json`.
 | services public/private toggle | `insta_service_access` |
 | `insta services scale/upgrade` | `insta_service_scale` / `insta_service_upgrade` |
 | `insta compute start\|stop\|suspend` / `status` | `insta_compute_control` / `insta_compute_status` |
+| `insta compute exec [service] -- <command>` | `insta_compute_exec` (`name?`/`branch?`/`command`/`timeoutSec?`) |
 | `insta compute set-domain/check-domain/remove-domain` | `insta_domain_set` / `insta_domain_check` / `insta_domain_remove` |
 | `insta branch create/list/merge/delete` | `insta_branch_create` / `insta_branch_list` / `insta_branch_merge` / `insta_branch_delete` |
 | `insta manifest` | `insta_manifest` (env view — **no secret values**) |
