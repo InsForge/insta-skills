@@ -95,9 +95,11 @@ suspension force-stops always-on machines too — pinned-warm does not outlive t
 machine and returns — **no interactive shell, no stdin**. Use it for a one-off migration, a debug
 `ls`/`cat`, or confirming a process is actually up.
 
+- Targets **a single machine** — the first `started` machine, else the first live one. If a service
+  has been scaled out to multiple machines, `exec` runs on exactly one of them, not all.
 - A **scaled-to-zero machine wakes first** — adds a few seconds, and that wake time bills as normal
   compute uptime, same as any other request.
-- `--timeout <sec>` bounds the run, **1–300s** (default 30); the remote command is killed if it
+- `--timeout <sec>` bounds the run, **1–180s** (default 30); the remote command is killed if it
   doesn't finish in time.
 - The CLI's **exit code is the remote command's exit code** — safe to check in a script (`&&`,
   `$?`). stdout/stderr stream to their own local streams verbatim; each is capped at **1 MiB**, with

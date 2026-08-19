@@ -25,7 +25,14 @@ Decisions: `allow` (proceed) · `deny` (hard no) · `approve` (human in the loop
 
 `insta compute exec` is the one command gated on **two** actions at once (`deploy` **and**
 `secrets.read`) — a `deny` on either is a 403, and an `approve` on either needs its own relay before
-the command proceeds.
+the command proceeds. Grants are **single-use and consumed per-gate**, not per-command: with both
+actions set to `approve`, a full walkthrough takes **three approvals**, not two. Attempt 1 202s on
+`deploy`. Once that's granted, attempt 2 consumes it, passes `deploy`, and 202s on `secrets.read`
+(so `deploy`'s grant is already spent again). Once `secrets.read` is granted, attempt 3 needs
+`deploy` approved a *second* time before `secrets.read`'s own already-granted grant finally gets
+consumed and the command runs. And since an approval records only the action name, not which
+command triggered it, the request an admin sees just says `deploy` — nothing distinguishes an
+`exec`-triggered approval from a real `insta deploy`.
 
 ```bash
 insta policy get --json
