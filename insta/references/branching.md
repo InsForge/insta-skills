@@ -67,7 +67,7 @@ branch **before** dispatching:
 ```bash
 git worktree add -b feat-x ../proj-feat-x main   # isolated CODE copy
 cd ../proj-feat-x
-insta branch create feat-x && insta branch switch feat-x && insta secrets
+insta branch create feat-x && insta branch switch feat-x
 npm install     # fresh worktrees have NO node_modules — first build fails without this
 ```
 
@@ -84,8 +84,9 @@ schema travels as migration **files**:
 
 1. Merge the branch's code in git (parallel-feature conflicts are usually additive — combine).
 2. Verify the merged code builds locally *before* the slow deploy.
-3. `insta branch switch main` → `insta secrets` → run the new migration files against **main's**
-   DB → `insta deploy`.
+3. `insta branch switch main` → `insta deploy` the merged code → run the new migration files
+   against **main's** DB with `insta compute exec app -- <migrate-cmd>` (the bound credentials are
+   already in the compute env; never gate startup on migrations — see deploy.md).
 4. **Validate on main's URL** — promotion isn't done until the live result checks out.
 5. `insta branch delete feat-x` — tear down the branch env (may hit a `branch.delete` gate).
 
