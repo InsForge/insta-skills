@@ -76,6 +76,22 @@ specs, up-only. Prefer `limits`. For postgres it is not a fallback at all — an
 postgres service is rejected outright; resize it with `insta db limits` and grow its disk with
 `insta db volume`.
 
+## Compute volumes
+
+Compute persistent `/data` volumes are **not create-time only**:
+
+```bash
+insta services add compute app --volume 1Gi  # attach at creation
+insta compute volume app --size 1Gi          # attach later if the service has no volume
+insta compute volume app                     # view size, mount path, and plan cap
+insta compute volume app --delete            # destroy the disk and all data
+```
+
+`--size` on a volumeless service attaches a volume, and it mounts on the **next deploy/redeploy**.
+`--size` on an existing volume grows it only; volumes cannot shrink. Deleting is the only way off a
+volume and is irreversible. A volume keeps machine count at 1 and changes scale-to-zero from suspend
+to stop; those constraints lift after deletion.
+
 ## Pausing & resuming compute
 
 To take a service **offline on purpose** — a maintenance window, cost control, or parking a
