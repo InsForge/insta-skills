@@ -16,7 +16,8 @@ Every sensitive action passes a per-project policy check at the credential bound
 | `secrets.write` | allow | user-secret changes and provider credential bind/unbind |
 | `deploy` | allow | code reaching compute (and the build-token mint); also gates `compute exec`, paired with `secrets.read` |
 | `branch.delete` | allow | tearing down an environment |
-| `service.add/remove/scale/upgrade` | allow | resource mutations (scale/upgrade: paid plans) |
+| `service.remove` | **approve** | deleting a service; also gates compute volume delete |
+| `service.add/scale/upgrade` | allow | resource mutations (scale/upgrade: paid plans) |
 | `storage.read` | allow | listing a bucket, downloading, previewing |
 | `storage.write` | allow | uploading an object |
 | `storage.delete` | allow | removing objects, one or in a batch |
