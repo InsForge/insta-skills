@@ -107,9 +107,9 @@ session and you log in again. Default is `prod`; nothing changes unless you swit
 | agent skills | `InsForge/insta-skills` | `InsForge/insta-skills#devel` |
 | CLI channel | latest stable release | newest prerelease (`v*-rc.N`), else stable |
 
-Install one-liners — each installs a complete stack for its environment (CLI build, control plane,
-MCP registration, and skill text all match). The npx form works on **every OS and shell** (Node
-18+; CLI ≥ 0.0.37 self-installs globally); the curl form is the no-Node native-binary path for
+Install one-liners — each installs a complete stack for its environment (control plane, MCP
+registration, and skill text all match). The npx form works on **every OS and shell** (Node 18+;
+CLI ≥ 0.0.37 self-installs globally); the curl form is the no-Node native-binary path for
 macOS/Linux only — **never run it on native Windows**, where PowerShell's `curl` alias and the WSL
 `bash` shim break it:
 
@@ -120,7 +120,10 @@ curl -fsSL agents.staging.instacloud.com | sh    # staging
 ```
 
 Staging via npx: `npm i -g insta`, `insta env use staging`, then `insta setup agent` — the env must
-be switched **before** `setup agent` so the skill text and MCP registration come from staging.
+be switched **before** `setup agent` so the skill text and MCP registration come from staging. The
+npm route always installs the **stable** CLI build; staging's prerelease channel is the curl
+installer's concern (npm's `next` tag can lag behind `latest`, so `insta@next` is only for
+deliberately testing a prerelease that is newer than stable).
 
 > **`agents.staging.instacloud.com` is not live yet** (its DNS/CloudFront ships separately). Until
 > it resolves, use the raw URL, which is exactly what the short host will serve:
