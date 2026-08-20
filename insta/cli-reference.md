@@ -267,7 +267,7 @@ available. Via MCP: the `insta_feedback` tool takes the same fields (plus explic
   human: the action returns `approval_required` — the hint prints to **stderr** and the command
   **exits 2** (CLI ≥ 0.0.37; distinct from exit 1 = error, so treat exit 2 as "pending, not
   failed"); an admin runs `insta approvals approve <id>`, then
-  you **re-run** it (single-use grant). `project.delete` is gated by default. `--always` on approve
+  you **re-run** it (single-use grant). `project.delete` and `service.remove` are gated by default. `--always` on approve
   flips the policy to `allow`.
 - `insta approvals list` / `approve <id>` / `deny <id>` — manage pending gates.
 - `insta events [--branch] [--limit]` — timeline of resource side-effects (project/branch creates,
