@@ -204,6 +204,7 @@ insta build . --port 8080                    # local pre-deploy build/readiness 
 insta deploy . --port 8080                   # build (Dockerfile) + deploy to the current branch
 insta deploy --image <ref> --port 8080       # prebuilt image instead
 insta compute exec app -- printenv PORT      # one-shot command on live compute (no shell/stdin)
+insta compute volume app --size 1Gi          # attach/grow persistent /data; mounts on next deploy
 insta branch create feat && insta branch list --json
 insta logs compute --limit 100 --json        # runtime logs (--branch <b>; also redis|mysql|mongodb; db is provider-limited)
 insta metrics compute --json                 # service metrics (also redis|mysql|mongodb)
