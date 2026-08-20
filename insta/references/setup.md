@@ -6,12 +6,14 @@ From zero to a linked project — CLI install, target selection, auth, project +
 
 ```bash
 # agent one-liner — CLI + the insta skill for every coding agent + MCP (preferred; any OS/shell,
-# Node 18+; CLI ≥ 0.0.37 self-installs the CLI globally):
+# Node 18+; self-installs the CLI globally). ALWAYS targets prod (CLI >= 0.0.38 — switches a
+# staging-leftover machine back, announced):
 npx -y insta setup agent
+# staging is its own explicit one-liner (persists the env switch itself):
+npx -y insta setup agent --env staging
 # no Node? macOS/Linux ONLY — never on native Windows (PowerShell's curl alias + WSL bash shim break it):
 curl -fsSL agents.instacloud.com | sh
-# staging (see Environments): npm route = `npm i -g insta`, `insta env use staging`, `insta setup agent`.
-# curl route NOT LIVE YET — until its DNS ships, use the raw URL below:
+# staging curl route NOT LIVE YET — until its DNS ships, use the raw URL below:
 curl -fsSL agents.staging.instacloud.com | sh
 curl -fsSL https://raw.githubusercontent.com/InsForge/insta-cli/main/install.sh | sh -s -- --agents --staging -y
 # CLI only:
