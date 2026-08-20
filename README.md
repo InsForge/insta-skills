@@ -68,8 +68,10 @@ InstaCloud runs two separate deployments, and each gets its own branch of this r
 | `prod` | `InsForge/insta-skills` (`main`) |
 | `staging` | `InsForge/insta-skills#devel` |
 
-`insta setup agent` picks the right one from the machine's current environment, so a staging
-install reads skill text that describes the staging control plane.
+`insta setup agent` installs prod's skill text by default — bare `setup agent` always targets
+prod (CLI ≥ 0.0.38), switching a staging-leftover machine back. `insta setup agent --env staging`
+is the explicit staging setup; it installs the `#devel` skill text that describes the staging
+control plane.
 
 Use the `#ref` form when pinning a branch by hand. `owner/repo@ref` looks equivalent, but
 the skills tool parses `@` as a skill-name filter and silently leaves you on the default
