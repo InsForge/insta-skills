@@ -206,6 +206,7 @@ insta deploy --image <ref> --port 8080       # prebuilt image instead
 insta compute exec app -- printenv PORT      # one-shot command on live compute (no shell/stdin)
 insta branch create feat && insta branch list --json
 insta logs compute --limit 100 --json        # runtime logs (--branch <b>; also redis|mysql|mongodb; db is provider-limited)
+insta logs compute --since 2h --json         # time window (--from/--to too) — a windowless read is ONE page (~100 lines)
 insta metrics compute --json                 # service metrics (also redis|mysql|mongodb)
 insta events --limit 50 --json               # audit + agent-event timeline
 insta usage --json                           # cloud only (insta billing --json likewise)

@@ -18,6 +18,7 @@ deployed).
 ```bash
 insta metrics compute [group] [--branch --from --to --step --json]
 insta logs compute [group] [--branch --limit --region --instance --json]
+insta logs compute [group] --since 2h     # time window (--from/--to also accepted) — pages ~7 days of history
 insta metrics redis|mysql|mongodb [group]   # managed DBs are Fly apps: same full metrics/logs
 insta logs redis|mysql|mongodb [group] [--deploy]
 insta metrics db · insta logs db      # postgres: provider-limited — returns a note, not series
@@ -125,7 +126,8 @@ Work the list in order — these cover ~all real failures seen so far:
 3. **Migration-gated startup**: `CMD migrate && server` with a hung migration = nothing listening,
    empty logs. Fix the CMD to start the server regardless (see deploy.md).
 4. **Read the logs**: `insta logs compute [group] --branch <b> --limit 100` — crash loops, missing
-   env, bad image arch.
+   env, bad image arch. A bare read is ONE provider page (~100 lines); when the failure is older
+   than that, window it: `--since 2h`, or `--from <unix|ISO>` / `--to`.
 5. **Stale CLI**: unrecognized command / odd 4xx → `insta upgrade` (or re-run the installer), retry.
 6. **Gate, not failure**: a 202 "approval required" is not an error — relay it (governance.md).
 
