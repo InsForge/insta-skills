@@ -57,8 +57,10 @@ The distinct names matter: registration is idempotent by name, so a shared name 
 staging install silently pointed at the prod server. Because the names differ, **both can be
 registered on one machine at once** — check which you're talking to with `insta env`.
 
-`insta env use staging` (or `curl -fsSL agents.staging.instacloud.com | sh`) switches both hosts
-together. `INSTA_MCP_URL` still overrides outright, for a self-hosted or tunnelled server.
+`insta setup agent --env staging` (or `curl -fsSL agents.staging.instacloud.com | sh`) switches
+the environment and registers staging's server in one step (CLI ≥ 0.0.38 — bare `setup agent`
+always targets prod, so a bare re-run after `env use staging` would switch the machine back).
+`INSTA_MCP_URL` still overrides outright, for a self-hosted or tunnelled server.
 
 New/renamed tools need a **fresh agent session** to appear — reconnecting an existing session
 won't pick them up.
