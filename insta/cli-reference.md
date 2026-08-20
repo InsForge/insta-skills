@@ -42,6 +42,8 @@ branching, governance, operate, mcp.
 | `insta secrets unbind <ENV_NAME> --from <compute/name>` [`--branch <b>`] [`--json`] | Remove one provider credential binding from a compute service; takes effect on the next deploy/redeploy (gated: `secrets.write`) |
 | `insta build [dir]` [`--explain`] [`--port <n>`] [`--json`] | **verify before you deploy** — local, offline, deploys nothing, needs no login: prints the detection plan (builder, install/build/start commands, port **with the reason it was chosen**, `.env.example` keys), the Dockerfile that would be used (yours, or nixpacks-generated **if nixpacks is installed** — never auto-installed; without it the command degrades to Dockerfile-only checks and the report says how to install; `--explain` includes its content), and static checks each with a next action (missing Dockerfile/start command, port mismatch, `node_modules` shipping in the build context). Exits 1 when the verdict is `failed`. Run it before `insta deploy <dir>` instead of finding out from a burned remote build |
 | `insta deploy <dir>` / `--image <url>` [`--branch <b>`] [`--group <g>`] [`--port <n>`] [`--json`] | deploy to a compute service — a **source dir** (needs a `Dockerfile`; on InstaCloud it builds remotely on Fly — no local Docker; against a local insta-oss daemon the CLI builds with your local docker instead, same command) or a **prebuilt image**. Defaults to the branch's sole compute service; `--group` picks by name (gated: `deploy`). `--json` prints one `{image, machineId, url, branch, group, nextActions}` document on stdout — build progress moves to stderr so stdout stays parseable |
+| `insta template list` [`--json`] · `insta template info <code>` [`--json`] | browse the platform **template registry**: one row per template (code / version / category / required-var count / deploy count / name — tagline), and the detail view — version, maintainer, source, upstream pin, a services summary (types, ports, volumes), and every required/optional variable with its description, generator or default |
+| `insta template deploy <code\|./dir>` [`--branch <b>`] [`--set <NAME=value>`] [`-y`, `--yes`] [`--json`] | deploy a template's whole service set onto a branch (default: current) — a **registry code**, or a **local directory** carrying `insta.template.yaml`. A bare word is **always** a registry code; local mode needs a path-looking target (`./dir`, `/abs/dir`, `sub/dir`), so a same-named directory in the working dir can never shadow a registry template. Missing required variables are prompted for on a terminal; `--yes` or no TTY fails with the exact `--set NAME=value` list instead. `secret:N`-generated and defaulted variables are resolved **by the platform** — generated secrets never transit. Renders the 4-step pipeline (create services → write variables → deploy → health check), then the per-service URLs; may come back `approval_required` (approve, then re-run). See [Templates](#templates) |
 | `insta compute set-domain <host>` / `check-domain <host>` / `remove-domain <host>` [`--branch --group --json`] | attach / check / detach a **developer-owned custom domain** on a compute service — Fly issues the cert + routes; prints the DNS records to set in **your own** registrar (set/remove gated: `deploy`) |
 | `insta compute start\|stop\|suspend [service]` · `insta compute status [service]` [`--json`] | control a compute service's lifecycle — **persistent override** of auto scale-to-zero: `stop`/`suspend` take it offline and traffic will **not** wake it until `start`; `status` shows desired vs. live state. All plans; ungated. `[service]` defaults to the project's sole compute service |
 | `insta compute exec [service] -- <command> [args...]` [`--branch <b>`] [`--timeout <sec>`] [`--json`] | run a **one-shot** command on the service's live machine — no interactive shell, no stdin. Wakes a scaled-to-zero machine first (the wake counts as billed uptime). `--timeout` bounds the run, **1–180s** (default 30). The CLI's **exit code is the remote command's exit code** — safe for scripts/agents to branch on. stdout/stderr stream to their own local streams verbatim, each capped at **1 MiB** (truncation noted on stderr); `--json` returns the raw response instead of split streams. Gated on **both** `deploy` and `secrets.read` — a deny on either is a 403. A service with no image ever deployed 400s: "this service has no machines yet — deploy an image first, then retry" |
@@ -224,6 +226,24 @@ DNS propagates. The domain's DNS lives in your zone — you set it, not InstaClo
 ## Dockerfile templates
 
 Moved to [references/deploy.md](references/deploy.md) (backend / full-stack / SPA patterns).
+
+## Templates
+
+A **template** is a whole service set (images, ports, volumes, env) published as one unit —
+`insta template deploy <code>` creates those services on a branch, writes their variables, deploys
+and health-checks them, instead of a hand-rolled `services add` + `secrets set` + `deploy` sequence.
+
+- **Two modes, chosen by the target.** A bare word (`plausible`) is **always** a registry code. A
+  path-looking target (`./plausible`, `/srv/tpl`, `sub/dir`) is **always** a local directory and must
+  contain `insta.template.yaml` (validated locally, then sent inline). So a local directory never
+  shadows a registry template — `./` is how you opt into the local one.
+- **Variables.** `--set NAME=value` (repeatable) answers them up front. Required variables with no
+  answer are prompted for on a terminal; with `--yes` or no TTY the command fails listing exactly
+  what to pass. Variables carrying a `secret:N` generator or a default are resolved **by the
+  platform** — generated secrets never leave it.
+- **Outcomes.** `succeeded` prints each service's URL — then run `insta secrets` to refresh `./.env`.
+  `partial` is **terminal**: the healthy services stay up and the created resources are kept, so read
+  the log tail, then re-run the deploy to retry or `insta services remove <type> <name>` to clean up.
 
 ## Feedback
 
