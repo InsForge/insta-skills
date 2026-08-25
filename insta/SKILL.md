@@ -96,7 +96,8 @@ The same commands drive both. Resolve which one you're on from `insta status` (`
 InstaCloud has two agent-facing operation paths. Choose in this order:
 
 1. **CLI** for anything that needs local machine state: auth (`insta login`), pulling secret
-   **values** (`insta secrets` / `insta run`), source-directory deploys (`insta deploy <dir>`),
+   **values** (`insta secrets` / `insta run`, and the postgres DSN via `insta db url` /
+   `insta db connect`), source-directory deploys (`insta deploy <dir>`),
    the observe hook, and repo-linked context (`.insta/project.json`).
 2. **Remote MCP** (`insta_*` tools, when connected) as the default for platform-scoped
    operations that don't need local files: discovery, services, branches, image deploys,

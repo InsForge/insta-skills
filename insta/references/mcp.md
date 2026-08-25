@@ -10,12 +10,13 @@ gates, same audit trail.
 
 **Prefer the MCP tools when they're connected** — structured JSON results, no PATH/install
 concerns, and hosted agents (Claude.ai / ChatGPT) that have no shell can still operate InstaCloud.
-**The CLI remains required** for exactly four things a remote server cannot do:
+**The CLI remains required** for exactly five things a remote server cannot do:
 
 | Capability | Why CLI-only |
 |---|---|
 | `insta login` / auth / API-token CRUD | credential minting is deliberately not a remote tool |
 | `insta secrets` (pull values → `.env`) / `insta run` | secret **values** never flow out of MCP — names only, values in |
+| `insta db url` / `insta db connect` (postgres DSN) | same rule — the DSN is a value read, so it only exists on the CLI |
 | `insta deploy <dir>` (source builds) | needs a local build context; `insta_deploy` takes prebuilt image URLs only |
 | `insta observe` hook / `insta setup` | local-machine operations |
 
