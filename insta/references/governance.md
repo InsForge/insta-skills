@@ -12,7 +12,7 @@ Every sensitive action passes a per-project policy check at the credential bound
 | Action | Default | Guards |
 | --- | --- | --- |
 | `project.delete` | **approve** | destroying every resource |
-| `secrets.read` | allow | plaintext user-secret reads (`insta secrets` / `insta run`) and names-only binding/source views; also gates `compute exec`, paired with `deploy` |
+| `secrets.read` | allow | plaintext user-secret reads (`insta secrets` / `insta run`), the postgres DSN (`insta db url` / `insta db connect`), and names-only binding/source views; also gates `compute exec`, paired with `deploy` |
 | `secrets.write` | allow | user-secret changes and provider credential bind/unbind |
 | `deploy` | allow | code reaching compute (and the build-token mint); also gates `compute exec`, paired with `secrets.read` |
 | `branch.delete` | allow | tearing down an environment |

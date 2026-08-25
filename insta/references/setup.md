@@ -95,7 +95,10 @@ on a volumeless service to attach one. The volume appears on the next deploy/red
 Up to 5 services per type. Provider credentials are minted under the service that owns them with
 canonical names (`DATABASE_URL`, `BUCKET_NAME`, `AWS_ACCESS_KEY_ID`, `REDIS_URL`, `MYSQL_URL`,
 `MONGODB_URL`, …). They are not exported by `insta secrets` and are not injected into compute until
-you bind them to a compute service with `insta secrets bind`.
+you bind them to a compute service with `insta secrets bind`. The postgres DSN (only) is also
+directly readable — for a local psql, a migration, any tool outside compute — via `insta db url`
+(prints it) or `insta db connect` (opens psql); the other services' credentials have no direct
+read and reach code only through binding.
 
 ## Ship-from-zero (the whole chain)
 

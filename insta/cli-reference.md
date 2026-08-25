@@ -18,6 +18,8 @@ branching, governance, operate, mcp.
 | `insta regions` [`--json`] | list regions available for postgres/compute services |
 | `insta services list` [`--json`] [`--branch <b>`] · `insta services rename <type> <name> <new-name>` [`--json`] [`--branch <b>`] · `insta services remove <type> <name>` [`--branch <b>`] [`--json`] | list / rename / remove a branch's services (default: current branch; bindings keep pointing at renamed services; gated: `service.rename` / `service.remove`) |
 | `insta services secrets <type> <name>` [`--branch <b>`] [`--json`] | secret **names** bound to one service (e.g. `insta services secrets postgres db`) — default: current branch |
+| `insta db url` [`--branch <b>`] [`--group <g>`] [`--json`] | print a postgres service's **connection string** (DSN). Default output is the bare URL alone on stdout, pipe-friendly (`psql "$(insta db url)"`); `--json` replaces it with a `{service, branch, url}` envelope. This is **the** command that yields the DSN: provider credentials are not in `insta secrets` (gated: `secrets.read`). `--group` picks one when the branch has several postgres services |
+| `insta db connect` [`--branch <b>`] [`--group <g>`] | open an **interactive psql session** on a postgres service (needs `psql` on PATH; gated: `secrets.read`). A suspended instance wakes on connect — the first prompt can take a few seconds. Exits with psql's own exit code |
 | `insta services scale compute <name> <number>` [`region`] | set compute machine count — **paid plans only** (free → 403); gated: `service.scale`. `region` is an InstaCloud slug (e.g. `us-east`; see `insta regions`), **not** a raw Fly code |
 | `insta compute limits [service]` [`--memory <size>`] [`--cpu <n>`] [`--branch <b>`] [`--json`] | show or set a compute service's **resource ceiling** — **paid plans**. Bare = read (prints the ceiling **and** the plan max). Setting **requires `--memory`** (`512mb`, `1gb` — decimal `mb/gb` and binary `Mi/Gi` suffixes both accepted); cpu derives from it, and `--cpu` is only an optional override for parallel workloads (never valid alone). Moves **both directions**: billing is actual usage, so the ceiling caps what the app may burn — it is not a price |
 | `insta db limits` [`--cpu <n>`] [`--memory <size>`] [`--branch <b>`] [`--group <g>`] [`--json`] | same ceiling control for a postgres service — **paid plans**; both directions. Takes provider quantities (`--cpu 2` or `2500m`; `--memory 4Gi`); either flag alone works. Bare = read the current ceiling |
@@ -92,9 +94,10 @@ insta deploy . --group app --port 8080
 If a source exposes exactly one credential (`postgres` → `DATABASE_URL`), `--source-name` is
 optional. If it exposes several (`storage`, `redis`, `mysql`, `mongodb`), pass the source credential
 name to bind. Binding overwrites the target env var's previous binding; an env name that collides
-with a user secret visible to the same compute service is rejected (409). It does not expose
-plaintext — credential **values** never leave the platform via the CLI; anything that needs them
-runs where they are bound (the deployed app, or `insta compute exec`).
+with a user secret visible to the same compute service is rejected (409). Binding itself does not
+expose plaintext — the one CLI read that does is `insta db url` / `insta db connect` (the postgres
+DSN, gated `secrets.read`); every other credential value only runs where it is bound (the deployed
+app, or `insta compute exec`).
 Changes apply on the next deploy/redeploy — no hot reload. A project may have **multiple services of
 every type**, up to `INSTA_MAX_SERVICES_PER_TYPE` (default 5) per type.
 

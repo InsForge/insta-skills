@@ -59,7 +59,9 @@ s3 = boto3.client('s3', endpoint_url=os.environ['AWS_ENDPOINT_URL_S3'], region_n
 s3.put_object(Bucket=os.environ['BUCKET_NAME'], Key='avatars/u1.png', Body=data, ContentType='image/png')
 ```
 
-The same credentials drive any S3 tool, which is the quickest way to seed or inspect a bucket:
+The same credentials drive any S3 tool, which is the quickest way to seed or inspect a bucket
+(these examples assume an environment where the `AWS_*`/`BUCKET_NAME` values are already
+bound/configured — storage credentials have no CLI direct-read the way the postgres DSN does):
 
 ```bash
 aws s3 ls "s3://$BUCKET_NAME" --recursive --endpoint-url "$AWS_ENDPOINT_URL_S3"

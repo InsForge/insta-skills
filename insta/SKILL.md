@@ -26,7 +26,10 @@ types you build directly against are:
 
 - **postgres** — relational DB with a fixed resource ceiling (raise it on paid plans with
   `insta db limits`). Plain Postgres: connect any driver/ORM directly with the `DATABASE_URL`
-  you bind into compute env (below) — no vendor SDK or vendor skill. It scales to zero when
+  you bind into compute env (below) — no vendor SDK or vendor skill. The DB is also publicly
+  dialable from outside compute: `insta db url` prints the connection string and
+  `insta db connect` opens a psql session — that's how you (or a human) reach it from a laptop,
+  a migration script, or any external tool. It scales to zero when
   idle, so keep your pool's `idleTimeoutMillis` under the suspend window (see
   [frameworks.md](references/frameworks.md)).
 - **storage** — S3-compatible object/blob storage. Point any S3 library at the bound `AWS_*` /
@@ -55,6 +58,10 @@ insta secrets bind MYSQL_URL mysql/orders --source-name MYSQL_URL --to compute/a
 insta secrets bind MONGODB_URL mongodb/catalog --source-name MONGODB_URL --to compute/app
 insta deploy . --group app --port 8080
 ```
+
+Binding is for **compute env** only. To use a credential yourself — run migrations, inspect data,
+point a local tool at the DB — read the value directly: `insta db url` (postgres connection
+string; `insta db connect` for a psql shell).
 
 Use `insta services rename <type> <name> <new-name>` to rename a service; existing bindings keep
 pointing at that service.
@@ -89,7 +96,8 @@ The same commands drive both. Resolve which one you're on from `insta status` (`
 InstaCloud has two agent-facing operation paths. Choose in this order:
 
 1. **CLI** for anything that needs local machine state: auth (`insta login`), pulling secret
-   **values** (`insta secrets` / `insta run`), source-directory deploys (`insta deploy <dir>`),
+   **values** (`insta secrets` / `insta run`, and the postgres DSN via `insta db url` /
+   `insta db connect`), source-directory deploys (`insta deploy <dir>`),
    the observe hook, and repo-linked context (`.insta/project.json`).
 2. **Remote MCP** (`insta_*` tools, when connected) as the default for platform-scoped
    operations that don't need local files: discovery, services, branches, image deploys,
@@ -139,7 +147,8 @@ Skip this ceremony for the ship-from-zero chain above — `status` is its first 
 
 - The link (`./.insta/project.json`) is **per directory** and includes the current branch.
 - **Prefer explicit `--branch <name>`** on commands that accept it (`secrets`, `deploy`, `metrics`,
-  `logs`, `events`) over `insta branch switch` when acting on a branch you don't own — `switch`
+  `logs`, `events`, `db url` / `db connect` — a wrong-branch DSN means querying the wrong
+  database) over `insta branch switch` when acting on a branch you don't own — `switch`
   mutates the shared per-directory link and races parallel agents in the same checkout.
 - For parallel agents, the rule is **1:1:1 — task ↔ git worktree ↔ insta branch** (each worktree has
   its own link, so `switch` is safe there). See [branching.md](references/branching.md).
@@ -243,16 +252,20 @@ If a request spans two areas ("deploy and check it's healthy"), load both and an
 - When a file is genuinely needed, treat `./.env` (from `insta secrets`; auto-gitignored in git
   repos) as the **only** file-based source for user-defined secrets — never hardcode or print secret
   values. `DATABASE_URL`, `AWS_*` / `BUCKET_NAME`, `REDIS_*`, `MYSQL_*`, and `MONGODB_*` are service
-  credentials that reach production compute only through explicit `insta secrets bind` rules; their
-  **values never leave the platform via the CLI** — anything that needs them runs where they are
-  bound (the app itself, or a one-shot `insta compute exec <svc> -- <cmd>`).
+  credentials that reach production compute only through explicit `insta secrets bind` rules. For
+  direct use **outside** compute the sanctioned read is `insta db url` / `insta db connect`
+  (postgres; gated `secrets.read`) — pipe it (`psql "$(insta db url)"`), never paste the DSN into
+  files or code. Everything else runs where the credentials are bound (the app itself, or a
+  one-shot `insta compute exec <svc> -- <cmd>`).
   User-set config belongs in `insta secrets set <NAME>` (project-wide) / `--branch` for branch
   overrides — never hand-edit `.env` values you want to persist.
 - Track **every** schema change as a file under `migrations/` so it replays on a branch DB and again
   on `main` after a merge. **InstaCloud never merges databases — only migration files carry schema forward.**
   Migrations run where the DB credentials are bound: on the compute service, via
   `insta compute exec app -- <migrate-cmd>` (never as a startup gate — see
-  [deploy.md](references/deploy.md)).
+  [deploy.md](references/deploy.md)); or directly, with no compute involved:
+  `psql "$(insta db url --branch <b>)" -f migrations/<file>.sql` (explicit `--branch` — the bare
+  form reads the linked branch's DB).
 
 ## Governance & audit (this is the platform's core differentiator)
 
