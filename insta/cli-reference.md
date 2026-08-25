@@ -94,9 +94,10 @@ insta deploy . --group app --port 8080
 If a source exposes exactly one credential (`postgres` → `DATABASE_URL`), `--source-name` is
 optional. If it exposes several (`storage`, `redis`, `mysql`, `mongodb`), pass the source credential
 name to bind. Binding overwrites the target env var's previous binding; an env name that collides
-with a user secret visible to the same compute service is rejected (409). It does not expose
-plaintext — credential **values** never leave the platform via the CLI; anything that needs them
-runs where they are bound (the deployed app, or `insta compute exec`).
+with a user secret visible to the same compute service is rejected (409). Binding itself does not
+expose plaintext — the one CLI read that does is `insta db url` / `insta db connect` (the postgres
+DSN, gated `secrets.read`); every other credential value only runs where it is bound (the deployed
+app, or `insta compute exec`).
 Changes apply on the next deploy/redeploy — no hot reload. A project may have **multiple services of
 every type**, up to `INSTA_MAX_SERVICES_PER_TYPE` (default 5) per type.
 

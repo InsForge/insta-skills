@@ -63,10 +63,12 @@ credential names (`storage`, `redis`, `mysql`, `mongodb`) need `--source-name`. 
 `process.env`; **never bake `./.env` into the image** (it's local-dev/user-secrets only). Changing a
 secret or binding takes effect on the **next deploy** — no hot reload.
 
-Provider credential **values** never leave the platform via the CLI (`insta secrets` / `insta run`
-carry only user-defined secrets). Anything that needs the values runs where they are bound: the
-deployed app itself, or a one-shot `insta compute exec app -- <cmd>` (≤180s, no stdin) — which is
-also how migrations run (never as a startup gate; see the gotchas below).
+Provider credential **values** stay out of the general bundle (`insta secrets` / `insta run` carry
+only user-defined secrets). The one direct read is the postgres DSN — `insta db url` /
+`insta db connect` (gated `secrets.read`) — for psql, migrations, and tools outside compute.
+Everything else runs where the credentials are bound: the deployed app itself, or a one-shot
+`insta compute exec app -- <cmd>` (≤180s, no stdin) — migrations run either way (never as a
+startup gate; see the gotchas below).
 
 ## Verify before reporting (non-negotiable)
 
