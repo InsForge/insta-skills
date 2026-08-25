@@ -147,7 +147,8 @@ Skip this ceremony for the ship-from-zero chain above — `status` is its first 
 
 - The link (`./.insta/project.json`) is **per directory** and includes the current branch.
 - **Prefer explicit `--branch <name>`** on commands that accept it (`secrets`, `deploy`, `metrics`,
-  `logs`, `events`) over `insta branch switch` when acting on a branch you don't own — `switch`
+  `logs`, `events`, `db url` / `db connect` — a wrong-branch DSN means querying the wrong
+  database) over `insta branch switch` when acting on a branch you don't own — `switch`
   mutates the shared per-directory link and races parallel agents in the same checkout.
 - For parallel agents, the rule is **1:1:1 — task ↔ git worktree ↔ insta branch** (each worktree has
   its own link, so `switch` is safe there). See [branching.md](references/branching.md).
@@ -263,7 +264,8 @@ If a request spans two areas ("deploy and check it's healthy"), load both and an
   Migrations run where the DB credentials are bound: on the compute service, via
   `insta compute exec app -- <migrate-cmd>` (never as a startup gate — see
   [deploy.md](references/deploy.md)); or directly, with no compute involved:
-  `psql "$(insta db url)" -f migrations/<file>.sql`.
+  `psql "$(insta db url --branch <b>)" -f migrations/<file>.sql` (explicit `--branch` — the bare
+  form reads the linked branch's DB).
 
 ## Governance & audit (this is the platform's core differentiator)
 
