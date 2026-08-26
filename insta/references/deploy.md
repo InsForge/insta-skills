@@ -14,8 +14,12 @@ Targets the **current branch's** sole compute service by default; the URL prints
 
 Before source deploys, run `insta build <dir> --port <n>`. It is local/offline and catches the
 common failures before the remote build: missing Dockerfile/start command, wrong or undetected port,
-unexpected `.env.example` keys, and an oversized Docker context. Use `--explain` to see the
-Dockerfile that would be used; use `--json` when an agent needs structured output.
+unexpected `.env.example` keys, and an oversized Docker context. Read the verdict literally: only
+`deployable` means `insta deploy <dir>` will build it — a dir with no Dockerfile that nixpacks
+detects stops at `needs-attention` (⚠ Dockerfile check), because this path needs the dir's own
+Dockerfile (CLI ≥ 0.0.48). `--explain` shows the Dockerfile — yours, or the nixpacks one **for
+inspection only** (not standalone; do not save it as `Dockerfile`); use `--json` when an agent needs
+structured output.
 
 Never run a bare `insta deploy <dir>` and assume the port: without `--port` older CLIs default
 to 8080 regardless of the Dockerfile (boots "fine", every request refused — see below). Newer
@@ -24,7 +28,7 @@ confirm it matches the server's listen port.
 
 ## How source mode builds (what actually happens)
 
-1. The dir must contain a `Dockerfile` (no buildpacks yet — no Dockerfile → use `--image`, or add one from the templates below).
+1. The dir must contain a `Dockerfile`. There is **no nixpacks/buildpack lane on this path** — the CLI exits 1 without one. Dockerfile-less options: add one from the templates below (run `insta build <dir>` first: it reports the detected install/start commands to base it on, and only a dir with its own Dockerfile verdicts `deployable`), use `--image`, or connect the repo on GitHub — that server-side lane builds Dockerfile-less repos with nixpacks. Do **not** save the nixpacks Dockerfile that `insta build --explain` prints as your `Dockerfile`: it `COPY`s `.nixpacks/` support files the dir does not have.
 2. Needs the `fly` CLI locally (auto-installed via Homebrew on macOS) but **NO Fly account/login** —
    the platform mints a **short-lived, app-scoped deploy token** (this mint is govern-gated: it can
    return `approval_required` *before* any build runs).
