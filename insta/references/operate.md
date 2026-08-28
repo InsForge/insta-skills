@@ -110,7 +110,7 @@ suspension force-stops always-on machines too — pinned-warm does not outlive t
 
 ## Restarting a compute service
 
-`insta compute restart [service]` (**CLI ≥ 0.0.50**; older builds answer with commander's unknown-command
+`insta compute restart [service]` (**CLI ≥ 0.0.51**; older builds answer with commander's unknown-command
 error) re-runs the image reference the service **already** runs, against a freshly resolved env
 bundle. Reach for it in exactly two situations:
 
