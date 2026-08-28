@@ -65,7 +65,8 @@ insta deploy . --group app --port 8080
 If the source has a single credential (`postgres`), `--source-name` is optional. Sources with several
 credential names (`storage`, `redis`, `mysql`, `mongodb`) need `--source-name`. Production code reads
 `process.env`; **never bake `./.env` into the image** (it's local-dev/user-secrets only). Changing a
-secret or binding takes effect on the **next deploy** — no hot reload.
+secret or binding takes effect on the **next deploy**, or on **`insta compute restart`** (CLI ≥
+0.0.50) for a service already running — no hot reload in either case, the machine is replaced.
 
 Provider credential **values** stay out of the general bundle (`insta secrets` / `insta run` carry
 only user-defined secrets). The one direct read is the postgres DSN — `insta db url` /

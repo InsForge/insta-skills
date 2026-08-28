@@ -99,13 +99,15 @@ with a user secret visible to the same compute service is rejected (409). Bindin
 expose plaintext — the one CLI read that does is `insta db url` / `insta db connect` (the postgres
 DSN, gated `secrets.read`); every other credential value only runs where it is bound (the deployed
 app, or `insta compute exec`).
-Changes apply on the next deploy/redeploy — no hot reload. A project may have **multiple services of
-every type**, up to `INSTA_MAX_SERVICES_PER_TYPE` (default 5) per type.
+Changes apply on the next deploy — **or on `insta compute restart`** (CLI ≥ 0.0.50), which re-runs
+the image the service already runs against a freshly resolved bundle. There is still no hot reload:
+either way the machine is replaced. A project may have **multiple services of every type**, up to
+`INSTA_MAX_SERVICES_PER_TYPE` (default 5) per type.
 
 `insta secrets set <NAME>` / `unset <NAME>` manage **user-defined** secrets. A user secret cannot
 collide with a provider credential binding visible to the same compute service. Gated:
 `secrets.write`. Changes apply on the next
-`insta secrets` fetch or the next deploy — no hot reload. `--service` on `secrets set` scopes a
+`insta secrets` fetch, the next deploy, or an `insta compute restart` — no hot reload either way. `--service` on `secrets set` scopes a
 user-defined secret to a branch compute service; it is separate from provider credential binding
 (`secrets bind`). `secrets list`, `secrets tree`, `services secrets`, `secrets sources`, and
 `secrets bindings` are all **names only**.
