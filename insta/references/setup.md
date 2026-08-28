@@ -45,9 +45,11 @@ the other). Full table in [cli-reference.md](../cli-reference.md#environments).
 ## Auth (cloud only)
 
 - **Agents:** `insta login --email <e> --password <p>` (or `$INSTA_PASSWORD`), or an API token.
-- **Humans:** `insta login --oauth github|google` — opens a browser (loopback capture). If the
-  environment can't open one, relay any printed sign-in URL to the human **immediately and
-  verbatim**; never sit on it silently.
+- **Humans:** bare `insta login` — opens the console approval page in the browser (any account
+  type: email, GitHub, Google) and polls until approved; the link + code are also printed. If the
+  environment can't open a browser, relay the printed link + code to the human **immediately and
+  verbatim**; never sit on it silently. `--oauth github|google` still opens the named provider
+  directly.
 - **Headless machines (VM, SSH, CI — no browser on THIS machine):** `insta login --device` —
   prints a console link + code the human opens **on any other device** and approves; the CLI
   polls until logged in (~15 min window). Relay the printed link + code to the human immediately
