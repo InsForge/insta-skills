@@ -108,6 +108,39 @@ require no approval. A billing suspension is separate: you can't `start` while a
 suspended, and a manual `stop` is preserved across a billing pause/resume cycle. A billing
 suspension force-stops always-on machines too — pinned-warm does not outlive the org's credit.
 
+## Restarting a compute service
+
+`insta compute restart [service]` re-runs the image the service **already** runs, against a freshly
+resolved env bundle. Reach for it in exactly two situations:
+
+1. **Config changed and the running app hasn't picked it up.** `insta secrets set`,
+   `insta secrets bind` and `insta secrets unbind` all change what the app *would* receive, not what
+   the running machine holds — env is baked into the machine at deploy time. `restart` is how that
+   change lands without shipping a new version.
+2. **The machine is up but wedged.** A crash-looped or hung process is still `started`, so
+   `insta compute start` is a no-op on it — it only flips desired state and wakes a machine that is
+   *down*. `restart` cycles it.
+
+What it is **not**: a new deploy. It ships no new image and no new spec — the image, port and
+resource ceiling are exactly the ones already recorded on the service.
+
+Rules worth knowing before you call it:
+
+- **The service must be running.** A deliberately stopped or suspended one is refused (400) and
+  pointed at `insta compute start`, which is also what re-enables auto-wake. A restart would
+  otherwise silently undo the persistent override `stop` gives you.
+- **A service that has never been deployed** is refused the same way `exec` refuses it — deploy an
+  image first.
+- **It is health-gated on the way back up.** If the app doesn't answer on its port, the machines are
+  rolled back to the config they were serving and the command reports the failure. That verdict is
+  the useful part: a restart that "fails" here is telling you the app itself is broken, not the
+  platform. The old config still serving is the safe outcome, not a second failure.
+- All plans; ungated (no approval). It boots machines, so it bills as ordinary uptime and is refused
+  while the org is billing-suspended — the same door `start` stands behind.
+- WebSocket apps: the connections-based concurrency floor is set by `insta deploy --websocket` and is
+  not recorded on the service, so a restart comes back without it — same as any `insta deploy --image`
+  without the flag. Redeploy with `--websocket` instead of restarting for those.
+
 ## Running a one-shot command on a compute machine
 
 `insta compute exec [service] -- <command> [args...]` runs a single command on the service's live
