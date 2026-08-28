@@ -101,7 +101,9 @@ DSN, gated `secrets.read`); every other credential value only runs where it is b
 app, or `insta compute exec`).
 Changes apply on the next deploy — **or on `insta compute restart`** (CLI ≥ 0.0.50), which re-runs
 the image reference the service already runs against a freshly resolved bundle. There is still no hot reload:
-either way the machine takes a new config and restarts on it (in place — the machine id survives). A project may have **multiple services of every type**, up to
+either way the machine takes a new config and restarts on it, in place (the machine id survives). An
+idle machine may take the config without waking — see the `insta compute restart` row and
+[operate.md](references/operate.md). A project may have **multiple services of every type**, up to
 `INSTA_MAX_SERVICES_PER_TYPE` (default 5) per type.
 
 `insta secrets set <NAME>` / `unset <NAME>` manage **user-defined** secrets. A user secret cannot
