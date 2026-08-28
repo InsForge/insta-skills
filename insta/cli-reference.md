@@ -7,7 +7,7 @@ branching, governance, operate, mcp.
 
 | Command | Purpose |
 |---|---|
-| `insta login --email <e> --password <p>` [`--api-url <url>`] [`--env <prod\|staging>`] · `insta login --oauth <github\|google>` · `insta login --device` · `insta logout` | auth (api-url + tokens persist; tokens auto-refresh). `--oauth` opens a browser (loopback capture) — for interactive use on a machine with a browser. `--device` is the headless path (VMs, SSH, CI): it prints a console link + code, the human approves **from a browser on any other machine**, and the CLI polls until logged in (~15 min window). Agents can also use email/password or an API token. `--env` targets a named deployment (see [Environments](#environments)); `--api-url` wins if both are given |
+| `insta login` [`--api-url <url>`] [`--env <prod\|staging>`] · `insta login --email <e> --password <p>` · `insta login --oauth <github\|google>` · `insta login --device` · `insta logout` | auth (api-url + tokens persist; tokens auto-refresh). **Bare `insta login` signs in from the browser** (any account type — email, GitHub, Google): it opens the console approval link locally, prints it as fallback, and polls until the human approves (~15 min window). `--device` is the same grant, print-only, for a machine with no usable browser (VMs, SSH, CI): the human approves **from a browser on any other machine**. `--oauth` opens a browser straight into the named provider (loopback capture). Agents use email/password or an API token; a password (`--password`/`$INSTA_PASSWORD`) needs `--email`. `--env` targets a named deployment (see [Environments](#environments)); `--api-url` wins if both are given |
 | `insta env` [`--json`] · `insta env use <prod\|staging>` [`--json`] | show or switch the deployment environment. **Switching drops the stored session** — prod and staging are separate deployments, so the old token cannot authenticate. See [Environments](#environments) |
 | `insta status` [`--json`] | environment + login + linked project + current branch |
 | `insta org list` [`--json`] · `insta org create <name>` [`--json`] | organizations (**one free org per user** — upgrade an existing org before creating another) |
@@ -176,7 +176,7 @@ behind `latest`, so `insta@next` is only for deliberately testing a prerelease n
 ```bash
 insta env                      # current environment + its hosts
 insta env use staging          # switch; persisted to ~/.insta/config.json
-insta login --env staging --oauth github
+insta login --env staging      # or --email/--oauth as usual
 ```
 
 Control plane, MCP host **and** skill source are resolved **together** from one switch, so this
