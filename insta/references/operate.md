@@ -144,10 +144,11 @@ Rules worth knowing before you call it:
   command reports the failure. That verdict is the useful part: a restart that "fails" here is
   telling you the app itself is broken, not the platform.
 - **An idle machine may not be booted or gated at all — and idle is the default.** What happens to a
-  scaled-to-zero machine depends on the compute provider behind your deployment, which you cannot
-  see from the CLI: on the Fly-backed one it takes the new config *without waking*, coming up on it
-  at the next request — nothing is health-checked and no uptime is billed for the restart itself.
-  On the microVM plane the deploy waits for the service to be running and gates it.
+  scaled-to-zero machine depends on the compute plane behind your deployment — `insta manifest
+  --json` names it on each compute row (`provider`: `fly` or `microvm`). On the Fly-backed one it
+  takes the new config *without waking*, coming up on it at the next request: nothing is
+  health-checked and no uptime is billed for the restart itself. On the microVM plane the deploy
+  waits for the service to be running and gates it.
   So do not read a fast, green restart of an idle service as proof the app still boots. If that
   proof is what you were after, **send it a request** and check the response — that is the one step
   that means the same thing on both. (`insta compute always-on on` does *not* substitute: it changes
