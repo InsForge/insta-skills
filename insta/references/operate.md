@@ -132,11 +132,18 @@ Rules worth knowing before you call it:
 - **A service that has never been deployed** is refused the same way `exec` refuses it — deploy an
   image first.
 - **It is health-gated on the way back up.** If the app doesn't answer on its port, the machines are
-  rolled back to the config they were serving and the command reports the failure. That verdict is
-  the useful part: a restart that "fails" here is telling you the app itself is broken, not the
-  platform. The old config still serving is the safe outcome, not a second failure.
-- All plans; ungated (no approval). It boots machines, so it bills as ordinary uptime and is refused
-  while the org is billing-suspended — the same door `start` stands behind.
+  rolled back — best-effort — to the config they were serving and the command reports the failure.
+  That verdict is the useful part: a restart that "fails" here is telling you the app itself is
+  broken, not the platform. The old config still serving is the safe outcome, not a second failure.
+- **Gated under `deploy`** (unlike `start`/`stop`/`suspend`, which are ungated). Those change whether
+  the service is running; this changes what it runs — it lands configuration through the same path a
+  deploy does, and a recorded image reference that is a moving tag re-resolves. So a project with
+  `deploy` set to `deny` refuses it, and one set to `approve` relays it (`insta approvals approve
+  <id>`; see governance.md). **If you only need to cycle a wedged machine under such a policy, use
+  `insta compute stop` then `insta compute start`** — that force-stops and relaunches the machine
+  without going through a deploy. What it will *not* do is pick up new configuration.
+- All plans. It boots machines, so it bills as ordinary uptime and is refused while the org is
+  billing-suspended — the same door `start` stands behind.
 - WebSocket apps: the connections-based concurrency floor is set by `insta deploy --websocket` and is
   not recorded on the service, so a restart comes back without it — same as any `insta deploy --image`
   without the flag. Redeploy with `--websocket` instead of restarting for those.
