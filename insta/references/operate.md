@@ -143,12 +143,15 @@ Rules worth knowing before you call it:
   its port, the machines are rolled back — best-effort — to the config they were serving and the
   command reports the failure. That verdict is the useful part: a restart that "fails" here is
   telling you the app itself is broken, not the platform.
-- **A scaled-to-zero machine is neither booted nor gated — and that is the default.** Idle machines
-  suspend, and a restart hands them the new config without waking them: they come up on it at the
-  next request, so nothing is health-checked and no uptime is billed for the restart itself. Two
-  consequences worth planning around: a restart of an idle service returns *fast* and proves
-  nothing about whether the app still boots, and if you need that proof, send it a request (or run
-  `insta compute always-on on` first, which makes the machines running ones).
+- **An idle machine may not be booted or gated at all — and idle is the default.** What happens to a
+  scaled-to-zero machine depends on the compute provider behind your deployment, which you cannot
+  see from the CLI: on the Fly-backed one it takes the new config *without waking*, coming up on it
+  at the next request — nothing is health-checked and no uptime is billed for the restart itself.
+  On the microVM plane the deploy waits for the service to be running and gates it.
+  So do not read a fast, green restart of an idle service as proof the app still boots. If that
+  proof is what you were after, **send it a request** and check the response — that is the one step
+  that means the same thing on both. (`insta compute always-on on` does *not* substitute: it changes
+  the idle policy without starting a suspended machine, so it leaves you ungated and pinned warm.)
 - **Gated under `deploy`** (unlike `start`/`stop`/`suspend`, which are ungated). Those change whether
   the service is running; this changes what it runs — it lands configuration through the same path a
   deploy does. So a project with `deploy` set to `deny` refuses it, and one set to `approve` relays it (`insta approvals approve
@@ -156,7 +159,7 @@ Rules worth knowing before you call it:
   `insta compute stop` then `insta compute start`** — that force-stops and relaunches the machine
   without going through a deploy. What it will *not* do is pick up new configuration.
 - All plans. Refused while the org is billing-suspended — the same door `start` stands behind. Any
-  machine it *does* wake bills as ordinary uptime; an idle one it leaves asleep costs nothing.
+  machine it wakes bills as ordinary uptime; one left asleep (see above) costs nothing.
 - **WebSocket apps keep their concurrency.** The connections-based concurrency `insta deploy
   --websocket` sets — and the 512 MB guest floor that rides with it — is recorded on the service, so
   a restart re-asserts it, as does any redeploy given no flag. A service deployed before that became

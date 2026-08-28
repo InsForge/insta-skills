@@ -49,7 +49,9 @@ service that minted them and use canonical names inside that scope (`DATABASE_UR
 `MYSQL_URL`, `MONGODB_URL`, `AWS_ACCESS_KEY_ID`, `BUCKET_NAME`, …). They do **not** automatically
 appear in `insta secrets`, `insta run`, or compute env. Bind the credentials a compute service needs,
 then deploy — or, if the service is already running, `insta compute restart` (CLI ≥ 0.0.50) to pick
-the binding up without shipping a new version:
+the binding up without deploying a new one. It re-runs the image *reference* already recorded, so a
+service on a moving tag (`app:latest`) still gets whatever that tag resolves to now — see
+[operate.md](references/operate.md) before using it on production:
 
 ```bash
 insta secrets sources                    # what's available to bind (--branch <b> targets another branch)

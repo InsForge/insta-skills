@@ -67,7 +67,8 @@ credential names (`storage`, `redis`, `mysql`, `mongodb`) need `--source-name`. 
 `process.env`; **never bake `./.env` into the image** (it's local-dev/user-secrets only). Changing a
 secret or binding takes effect on the **next deploy**, or on **`insta compute restart`** (CLI ≥
 0.0.50) for a service already running — no hot reload in either case: the machine takes a new config
-and restarts on it (in place; an idle machine takes it and comes up on the new config next request).
+and restarts on it, in place. Whether an *idle* machine is woken to do so depends on the compute
+provider; see [operate.md](operate.md) before treating a restart as proof the app came back.
 
 Provider credential **values** stay out of the general bundle (`insta secrets` / `insta run` carry
 only user-defined secrets). The one direct read is the postgres DSN — `insta db url` /
