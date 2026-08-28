@@ -66,7 +66,7 @@ If the source has a single credential (`postgres`), `--source-name` is optional.
 credential names (`storage`, `redis`, `mysql`, `mongodb`) need `--source-name`. Production code reads
 `process.env`; **never bake `./.env` into the image** (it's local-dev/user-secrets only). Changing a
 secret or binding takes effect on the **next deploy**, or on **`insta compute restart`** (CLI ≥
-0.0.50) for a service already running — no hot reload in either case: the machine takes a new config
+0.0.51) for a service already running — no hot reload in either case: the machine takes a new config
 and restarts on it, in place. Whether an *idle* machine is woken to do so depends on the compute
 provider; see [operate.md](operate.md) before treating a restart as proof the app came back.
 
