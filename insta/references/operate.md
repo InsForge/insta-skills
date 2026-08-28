@@ -145,7 +145,8 @@ Rules worth knowing before you call it:
   telling you the app itself is broken, not the platform.
 - **An idle machine may not be booted or gated at all — and idle is the default.** What happens to a
   scaled-to-zero machine depends on the compute plane behind your deployment — `insta manifest
-  --json` names it on each compute row (`provider`: `fly` or `microvm`). On the Fly-backed one it
+  --json` names it on each compute row (`provider`: `fly` or `microvm`, or the neutral `compute`
+  when the platform did not report one, in which case assume neither behaviour). On the Fly-backed one it
   takes the new config *without waking*, coming up on it at the next request: nothing is
   health-checked and no uptime is billed for the restart itself. On the microVM plane the deploy
   waits for the service to be running and gates it.
