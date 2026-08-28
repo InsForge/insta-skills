@@ -80,7 +80,7 @@ server is stateless, there is no "current project" like `./.insta/project.json`.
 | `insta services add/list/remove` [`--branch`] | `insta_service_add` / `insta_service_list` / `insta_service_remove` (all take `branch?`; add takes `public?` for storage) |
 | services public/private toggle | `insta_service_access` |
 | `insta services scale/upgrade` | `insta_service_scale` / `insta_service_upgrade` |
-| `insta compute start\|stop\|suspend\|restart` / `status` | `insta_compute_control` / `insta_compute_status` |
+| `insta compute start\|stop\|suspend\|restart` / `status` | `insta_compute_control` / `insta_compute_status` — `restart` needs a deployed insta-mcp carrying it; older servers reject the verb at schema validation |
 | `insta compute exec [service] -- <command>` | `insta_compute_exec` (`name?`/`branch?`/`command`/`timeoutSec?`) |
 | `insta compute set-domain/check-domain/remove-domain` | `insta_domain_set` / `insta_domain_check` / `insta_domain_remove` |
 | `insta branch create/list/merge/delete` | `insta_branch_create` / `insta_branch_list` / `insta_branch_merge` / `insta_branch_delete` |

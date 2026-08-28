@@ -48,8 +48,8 @@ types you build directly against are:
 service that minted them and use canonical names inside that scope (`DATABASE_URL`, `REDIS_URL`,
 `MYSQL_URL`, `MONGODB_URL`, `AWS_ACCESS_KEY_ID`, `BUCKET_NAME`, …). They do **not** automatically
 appear in `insta secrets`, `insta run`, or compute env. Bind the credentials a compute service needs,
-then deploy — or, if the service is already running, `insta compute restart` to pick the binding up
-without shipping a new image:
+then deploy — or, if the service is already running, `insta compute restart` (CLI ≥ 0.0.50) to pick
+the binding up without shipping a new version:
 
 ```bash
 insta secrets sources                    # what's available to bind (--branch <b> targets another branch)
@@ -250,7 +250,7 @@ If a request spans two areas ("deploy and check it's healthy"), load both and an
   invocation and injected into the child environment only; nothing is written to disk, so nothing can
   leak or be committed. Provider-minted service credentials are not in this bundle; bind them to a
   compute service with `insta secrets bind`, then deploy (or `insta compute restart` an already-running
-  service — a binding change never reaches a live machine on its own).
+  service, CLI ≥ 0.0.50 — a binding change never reaches a live machine on its own).
 - When a file is genuinely needed, treat `./.env` (from `insta secrets`; auto-gitignored in git
   repos) as the **only** file-based source for user-defined secrets — never hardcode or print secret
   values. `DATABASE_URL`, `AWS_*` / `BUCKET_NAME`, `REDIS_*`, `MYSQL_*`, and `MONGODB_*` are service

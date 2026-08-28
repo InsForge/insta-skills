@@ -110,8 +110,9 @@ suspension force-stops always-on machines too — pinned-warm does not outlive t
 
 ## Restarting a compute service
 
-`insta compute restart [service]` re-runs the image the service **already** runs, against a freshly
-resolved env bundle. Reach for it in exactly two situations:
+`insta compute restart [service]` (**CLI ≥ 0.0.50**; older builds answer with commander's unknown-command
+error) re-runs the image reference the service **already** runs, against a freshly resolved env
+bundle. Reach for it in exactly two situations:
 
 1. **Config changed and the running app hasn't picked it up.** `insta secrets set`,
    `insta secrets bind` and `insta secrets unbind` all change what the app *would* receive, not what
@@ -121,8 +122,15 @@ resolved env bundle. Reach for it in exactly two situations:
    `insta compute start` is a no-op on it — it only flips desired state and wakes a machine that is
    *down*. `restart` cycles it.
 
-What it is **not**: a new deploy. It ships no new image and no new spec — the image, port and
-resource ceiling are exactly the ones already recorded on the service.
+What it is **not**: a new deploy. It asks for no new version and no new spec — the image
+*reference*, port and resource ceiling are exactly the ones already recorded on the service.
+
+One qualification, and it is the only way a restart can change what runs: **it does not pin a
+digest.** A service recorded against a moving tag (`app:latest`, `nginx:1.27`) gets whatever that
+tag resolves to *now* — the same as redeploying that tag would. Source deploys (`insta deploy <dir>`)
+record a unique `insta-<timestamp>` label and are unaffected; only `--image` with a moving tag is.
+If you are restarting a production app to cycle a wedged machine, that is worth knowing before you
+run it.
 
 Rules worth knowing before you call it:
 
@@ -137,16 +145,17 @@ Rules worth knowing before you call it:
   broken, not the platform. The old config still serving is the safe outcome, not a second failure.
 - **Gated under `deploy`** (unlike `start`/`stop`/`suspend`, which are ungated). Those change whether
   the service is running; this changes what it runs — it lands configuration through the same path a
-  deploy does, and a recorded image reference that is a moving tag re-resolves. So a project with
-  `deploy` set to `deny` refuses it, and one set to `approve` relays it (`insta approvals approve
+  deploy does. So a project with `deploy` set to `deny` refuses it, and one set to `approve` relays it (`insta approvals approve
   <id>`; see governance.md). **If you only need to cycle a wedged machine under such a policy, use
   `insta compute stop` then `insta compute start`** — that force-stops and relaunches the machine
   without going through a deploy. What it will *not* do is pick up new configuration.
 - All plans. It boots machines, so it bills as ordinary uptime and is refused while the org is
   billing-suspended — the same door `start` stands behind.
-- WebSocket apps: the connections-based concurrency floor is set by `insta deploy --websocket` and is
-  not recorded on the service, so a restart comes back without it — same as any `insta deploy --image`
-  without the flag. Redeploy with `--websocket` instead of restarting for those.
+- **WebSocket apps keep their concurrency.** The connections-based concurrency `insta deploy
+  --websocket` sets — and the 512 MB guest floor that rides with it — is recorded on the service, so
+  a restart re-asserts it, as does any redeploy given no flag. A service deployed before that became
+  a recorded setting has it recovered from its running machine. You do not need to redeploy a socket
+  app just to keep it a socket app.
 
 ## Running a one-shot command on a compute machine
 
