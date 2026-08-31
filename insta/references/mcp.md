@@ -19,7 +19,7 @@ concerns, and hosted agents (Claude.ai / ChatGPT) that have no shell can still o
 | `insta db url` / `insta db connect` (postgres DSN) | same rule — the DSN is a value read, so it only exists on the CLI |
 | `insta deploy <dir>` (source builds) | needs a local build context; `insta_deploy` takes prebuilt image URLs only |
 | `insta observe` hook / `insta setup` | local-machine operations |
-| `insta db limits/settings/password` (database admin) | not yet exposed as MCP tools |
+| `insta db limits` (database machine spec) | not yet exposed as an MCP tool |
 
 ## Connecting
 
@@ -92,12 +92,12 @@ server is stateless, there is no "current project" like `./.insta/project.json`.
 | `insta secrets sources/bindings/bind/unbind` | `insta_secret_sources` / `insta_secret_bindings` / `insta_secret_bind` / `insta_secret_unbind` (provider credential binding; names only, no secret values) |
 | `insta deploy --image <url>` | `insta_deploy` (image-only) |
 | `insta metrics/logs/events` | `insta_metrics` / `insta_logs` / `insta_deploy_events` / `insta_events` |
-| `insta status --runtime` / `insta metrics db` | `insta_runtime_health` / `insta_operations` (database provider operations, not a general operations feed; for watching a postgres branch or restore settle) / `insta_db_stats` (read-only; `kind` = metrics, insight, activity, query-stats) |
+| runtime health (no CLI equivalent) / `insta metrics db` | `insta_runtime_health` / `insta_operations` (database provider operations, not a general operations feed; for watching a postgres branch or restore settle) / `insta_db_stats` (read-only; `kind` = metrics, insight, activity, query-stats) |
 | `insta usage` / `billing` | `insta_usage` / `insta_org_usage` (org-level, optional `from`/`to`) / `insta_billing_summary` / `insta_billing_overview` (org-level, current cycle only) |
 | `insta billing upgrade/portal` | `insta_billing_checkout` / `insta_billing_portal` — return a Stripe **URL for the human**; relay it, never claim payment happened |
 | `insta govern …` (policy/approvals) | `insta_policy_get` / `insta_policy_set` (admin-only; change policy only on explicit human request) / `insta_approvals_list` / `insta_approvals_approve` / `insta_approvals_deny` |
 | storage browse/download/delete | `insta_storage_list` / `insta_storage_download_url` / `insta_storage_delete` (no upload yet) |
-| `insta templates search/show/deploy` | `insta_template_search` / `insta_template_get` / `insta_template_deploy` / `insta_template_deployment_status` |
+| `insta template list/info/deploy` | `insta_template_search` / `insta_template_get` / `insta_template_deploy` / `insta_template_deployment_status` |
 | `insta feedback` | `insta_feedback` (same fields; pass `projectId`/`branch` explicitly — see [cli-reference.md → Feedback](../cli-reference.md#feedback)) |
 
 ## Behavior that carries over from the CLI
