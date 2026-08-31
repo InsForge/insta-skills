@@ -10,7 +10,7 @@ gates, same audit trail.
 
 **Prefer the MCP tools when they're connected** — structured JSON results, no PATH/install
 concerns, and hosted agents (Claude.ai / ChatGPT) that have no shell can still operate InstaCloud.
-**The CLI remains required** for exactly five things a remote server cannot do:
+**The CLI remains required** for the things a remote server cannot or must not do:
 
 | Capability | Why CLI-only |
 |---|---|
@@ -19,6 +19,7 @@ concerns, and hosted agents (Claude.ai / ChatGPT) that have no shell can still o
 | `insta db url` / `insta db connect` (postgres DSN) | same rule — the DSN is a value read, so it only exists on the CLI |
 | `insta deploy <dir>` (source builds) | needs a local build context; `insta_deploy` takes prebuilt image URLs only |
 | `insta observe` hook / `insta setup` | local-machine operations |
+| `insta db limits` (database machine spec) | not yet exposed as an MCP tool |
 
 ## Connecting
 
@@ -77,21 +78,26 @@ server is stateless, there is no "current project" like `./.insta/project.json`.
 | `insta status` (am I connected?) | `insta_whoami` |
 | `insta org list` / `create` | `insta_org_list` / `insta_org_create` |
 | `insta project list/create/delete` | `insta_project_list` / `insta_project_create` / `insta_project_get` / `insta_project_delete` |
-| `insta services add/list/remove` [`--branch`] | `insta_service_add` / `insta_service_list` / `insta_service_remove` (all take `branch?`; add takes `public?` for storage) |
+| region discovery | `insta_regions` |
+| `insta services add/list/remove/rename` [`--branch`] | `insta_service_add` / `insta_service_list` / `insta_service_remove` / `insta_service_rename` (all take `branch?`; add takes `public?` for storage) |
 | services public/private toggle | `insta_service_access` |
 | `insta services scale/upgrade` | `insta_service_scale` / `insta_service_upgrade` |
 | `insta compute start\|stop\|suspend\|restart` / `status` | `insta_compute_control` / `insta_compute_status` — `restart` needs a deployed insta-mcp carrying it; older servers reject the verb at schema validation |
 | `insta compute exec [service] -- <command>` | `insta_compute_exec` (`name?`/`branch?`/`command`/`timeoutSec?`) |
+| `insta compute limits/always-on/volume` | `insta_compute_limits` / `insta_compute_always_on` / `insta_volume` (read/grow: compute + managed fly DBs; remove: compute only, destroys the disk and its data) |
 | `insta compute set-domain/check-domain/remove-domain` | `insta_domain_set` / `insta_domain_check` / `insta_domain_remove` |
 | `insta branch create/list/merge/delete` | `insta_branch_create` / `insta_branch_list` / `insta_branch_merge` / `insta_branch_delete` |
 | `insta manifest` | `insta_manifest` (env view — **no secret values**) |
 | `insta secrets list/set/unset` | `insta_secrets_list` (names only) / `insta_secrets_set` / `insta_secrets_unset` |
 | `insta secrets sources/bindings/bind/unbind` | `insta_secret_sources` / `insta_secret_bindings` / `insta_secret_bind` / `insta_secret_unbind` (provider credential binding; names only, no secret values) |
 | `insta deploy --image <url>` | `insta_deploy` (image-only) |
-| `insta metrics/logs/events` | `insta_metrics` / `insta_logs` / `insta_events` |
-| `insta usage` / `billing` | `insta_usage` / `insta_billing_summary` |
+| `insta metrics/logs/events` | `insta_metrics` / `insta_logs` / `insta_deploy_events` / `insta_events` |
+| runtime health (no CLI equivalent) / `insta metrics db` | `insta_runtime_health` / `insta_operations` (database provider operations, not a general operations feed; for watching a postgres branch or restore settle) / `insta_db_stats` (read-only; `kind` = metrics, insight, activity, query-stats) |
+| `insta usage` / `billing` | `insta_usage` / `insta_org_usage` (org-level, optional `from`/`to`) / `insta_billing_summary` / `insta_billing_overview` (org-level, current cycle only) |
 | `insta billing upgrade/portal` | `insta_billing_checkout` / `insta_billing_portal` — return a Stripe **URL for the human**; relay it, never claim payment happened |
-| `insta govern …` (policy/approvals) | `insta_policy_get` / `insta_approvals_list` / `insta_approvals_approve` / `insta_approvals_deny` |
+| `insta govern …` (policy/approvals) | `insta_policy_get` / `insta_policy_set` (admin-only; change policy only on explicit human request) / `insta_approvals_list` / `insta_approvals_approve` / `insta_approvals_deny` |
+| storage browse/download/delete | `insta_storage_list` / `insta_storage_download_url` / `insta_storage_delete` (no upload yet) |
+| `insta template list/info/deploy` | `insta_template_search` / `insta_template_get` / `insta_template_deploy` / `insta_template_deployment_status` |
 | `insta feedback` | `insta_feedback` (same fields; pass `projectId`/`branch` explicitly — see [cli-reference.md → Feedback](../cli-reference.md#feedback)) |
 
 ## Behavior that carries over from the CLI
