@@ -92,7 +92,7 @@ server is stateless, there is no "current project" like `./.insta/project.json`.
 | `insta secrets sources/bindings/bind/unbind` | `insta_secret_sources` / `insta_secret_bindings` / `insta_secret_bind` / `insta_secret_unbind` (provider credential binding; names only, no secret values) |
 | `insta deploy --image <url>` | `insta_deploy` (image-only) |
 | `insta metrics/logs/events` | `insta_metrics` / `insta_logs` / `insta_deploy_events` / `insta_events` |
-| `insta status --runtime` / operations / `insta metrics db` | `insta_runtime_health` / `insta_operations` / `insta_db_stats` (read-only; `kind` = metrics, insight, activity, query-stats) |
+| `insta status --runtime` / `insta metrics db` | `insta_runtime_health` / `insta_operations` (database provider operations, not a general operations feed; for watching a postgres branch or restore settle) / `insta_db_stats` (read-only; `kind` = metrics, insight, activity, query-stats) |
 | `insta usage` / `billing` | `insta_usage` / `insta_org_usage` (org-level, optional `from`/`to`) / `insta_billing_summary` / `insta_billing_overview` (org-level, current cycle only) |
 | `insta billing upgrade/portal` | `insta_billing_checkout` / `insta_billing_portal` — return a Stripe **URL for the human**; relay it, never claim payment happened |
 | `insta govern …` (policy/approvals) | `insta_policy_get` / `insta_policy_set` (admin-only; change policy only on explicit human request) / `insta_approvals_list` / `insta_approvals_approve` / `insta_approvals_deny` |
