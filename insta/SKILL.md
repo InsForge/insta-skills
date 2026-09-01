@@ -95,22 +95,23 @@ The same commands drive both. Resolve which one you're on from `insta status` (`
   **No login exists or is needed** (localhost trust, builtin `local` user); billing/usage/metrics
   return clear "cloud-only" errors — don't retry them.
 
-## Tool routing: MCP vs CLI
+## Tool routing: CLI vs MCP
 
-InstaCloud has two agent-facing operation paths. Choose in this order:
+InstaCloud has two agent-facing operation paths. **This skill + the CLI is the default for
+everything** — the CLI covers the full command surface (bar a few MCP-only read-only
+diagnostics, listed in mcp.md), carries linked-repo context
+(`.insta/project.json`), and is the only path for local machine state: auth (`insta login`),
+pulling secret **values** (`insta secrets` / `insta run`, and the postgres DSN via
+`insta db url` / `insta db connect`), source-directory deploys (`insta deploy <dir>`), and the
+observe hook.
 
-1. **CLI** for anything that needs local machine state: auth (`insta login`), pulling secret
-   **values** (`insta secrets` / `insta run`, and the postgres DSN via `insta db url` /
-   `insta db connect`), source-directory deploys (`insta deploy <dir>`),
-   the observe hook, and repo-linked context (`.insta/project.json`).
-2. **Remote MCP** (`insta_*` tools, when connected) as the default for platform-scoped
-   operations that don't need local files: discovery, services, branches, image deploys,
-   metrics/logs/usage, governance. Structured JSON, same governance gates, same audit trail.
-3. No MCP connected → the CLI covers everything.
-
-MCP tools take **explicit `projectId`/`branch` args** — never assume the CLI's linked context
-carries over; resolve IDs first (e.g. `insta_project_list`, or `insta status --json` locally) and
-pass them explicitly. Full mapping + connection guide: **[mcp.md](references/mcp.md)**.
+Fall back to the **remote MCP tools** (`insta_*`) only when the CLI can't be invoked: no shell
+(hosted agents like Claude.ai / ChatGPT connectors), or the CLI isn't installed and can't be
+(the common case is fixable with no CLI on PATH: `npx -y insta@latest setup agent -y`
+self-installs it — see self-heal below). Same platform API, same governance gates, same audit
+trail — but MCP tools take **explicit `projectId`/`branch` args**: never assume the CLI's linked
+context carries over; resolve IDs first (`insta_project_list`) and pass them explicitly. Full
+mapping + connection guide: **[mcp.md](references/mcp.md)**.
 
 **Self-heal:** if the insta skill or the `insta_*` MCP tools are expected but missing, run
 `insta setup agent -y` (installs the skill + registers MCP for Claude Code and every detected
