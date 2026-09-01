@@ -107,8 +107,8 @@ observe hook.
 
 Fall back to the **remote MCP tools** (`insta_*`) only when the CLI can't be invoked: no shell
 (hosted agents like Claude.ai / ChatGPT connectors), or the CLI isn't installed and can't be
-(the common case is fixable with no CLI on PATH: `npx -y insta@latest setup agent` self-installs
-it — see self-heal below). Same platform API, same governance gates, same audit
+(the common case is fixable with no CLI on PATH: `npx -y insta@latest setup agent -y`
+self-installs it — see self-heal below). Same platform API, same governance gates, same audit
 trail — but MCP tools take **explicit `projectId`/`branch` args**: never assume the CLI's linked
 context carries over; resolve IDs first (`insta_project_list`) and pass them explicitly. Full
 mapping + connection guide: **[mcp.md](references/mcp.md)**.
