@@ -98,7 +98,8 @@ The same commands drive both. Resolve which one you're on from `insta status` (`
 ## Tool routing: CLI vs MCP
 
 InstaCloud has two agent-facing operation paths. **This skill + the CLI is the default for
-everything** — the CLI covers the full surface, carries linked-repo context
+everything** — the CLI covers the full command surface (bar a few MCP-only read-only
+diagnostics, listed in mcp.md), carries linked-repo context
 (`.insta/project.json`), and is the only path for local machine state: auth (`insta login`),
 pulling secret **values** (`insta secrets` / `insta run`, and the postgres DSN via
 `insta db url` / `insta db connect`), source-directory deploys (`insta deploy <dir>`), and the
