@@ -8,9 +8,11 @@ gates, same audit trail.
 
 ## When to use which
 
-**Prefer the MCP tools when they're connected** — structured JSON results, no PATH/install
-concerns, and hosted agents (Claude.ai / ChatGPT) that have no shell can still operate InstaCloud.
-**The CLI remains required** for the things a remote server cannot or must not do:
+**The skill + CLI is the default — use the MCP tools only when the CLI can't be invoked**:
+hosted agents with no shell (Claude.ai / ChatGPT connectors), or a machine where the CLI isn't
+installed and can't be. When you do have a shell, prefer the CLI even if MCP tools are also
+connected — it carries linked-repo context and covers the full surface. **The CLI is the only
+path** for the things a remote server cannot or must not do:
 
 | Capability | Why CLI-only |
 |---|---|
