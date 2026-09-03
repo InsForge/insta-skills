@@ -5,9 +5,15 @@
 ```bash
 insta status --json        # target api · login · linked project · current branch
 insta manifest --json      # every branch's db/storage/compute + URLs — the ground truth
-insta services list --json # what the project has
+insta services list --json # what the project has (postgres rows: pg_version = Postgres major)
 insta events --limit 50    # what happened (resources + govern + agent findings)
 ```
+
+Before any `pg_dump` / `pg_restore` / `psql` against a branch database, read its Postgres major first:
+`pg_version` on the `services list --json` row, or `ref.pgVersion` on the manifest's database
+resources (root and branch rows alike). Use client tools of that same major — a dump taken by a
+newer client (17 against a 16 server) emits statements the server cannot restore, and the restore
+fails atomically. Neither read wakes a suspended instance.
 
 `manifest` is the first stop whenever reality seems to disagree with expectations — it shows what
 each branch *actually* has (including a legacy shared bucket, or a compute group that was never
