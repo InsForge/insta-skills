@@ -19,7 +19,8 @@ loaded (`pg_restore` and `psql -f` only roll back as a unit under `--single-tran
 with `-v ON_ERROR_STOP=1`). Neither read wakes a suspended instance. Rows older than the field were
 backfilled from the image every instance was born from, so if a restore still fails on version
 grounds against an old instance, confirm with the exact version. A legacy row that never recorded a
-major shows `pg_version: null` and no `ref.pgVersion`. For the exact version either way:
+major shows `pg_version: null` and no `ref.pgVersion`; a platform that predates the field sends no
+`pg_version` key at all (and no `ref.pgVersion` on any row). For the exact version either way:
 `psql "$(insta db url --branch <b>)" -c 'show server_version'` answers in one step (it wakes a
 suspended instance, like any connection); `insta db stats --json` reports it as `serverVersion` but
 never wakes one, so the field is present only while the instance is running.
