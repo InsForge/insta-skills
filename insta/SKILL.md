@@ -272,8 +272,9 @@ If a request spans two areas ("deploy and check it's healthy"), load both and an
   [deploy.md](references/deploy.md)); or directly, with no compute involved:
   `psql "$(insta db url --branch <b>)" -f migrations/<file>.sql` (explicit `--branch` — the bare
   form reads the linked branch's DB). Match `psql` / `pg_dump` / `pg_restore` to the server's
-  Postgres major first — `pg_version` on `insta services list --json`; if the row has none, read
-  the exact version instead (see [operate.md](references/operate.md)).
+  Postgres major first — `pg_version` on `insta services list --json --branch <b>` (same branch as
+  the DSN); if the row has none, read the exact version instead (see
+  [operate.md](references/operate.md)).
 
 ## Governance & audit (this is the platform's core differentiator)
 
