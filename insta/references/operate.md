@@ -13,7 +13,10 @@ Before any `pg_dump` / `pg_restore` / `psql` against a branch database, read its
 `pg_version` on the `services list --json` row, or `ref.pgVersion` on the manifest's database
 resources (root and branch rows alike). Use client tools of that same major — a dump taken by a
 newer client (17 against a 16 server) emits statements the server cannot restore, and the restore
-fails atomically. Neither read wakes a suspended instance.
+fails atomically. Neither read wakes a suspended instance. A legacy row that never recorded a
+major shows `pg_version: null` and no `ref.pgVersion`; for those, `insta db stats --json` reports
+the exact `serverVersion`, but only while the instance is running (it never wakes one), so run any
+query against the branch first if it is suspended.
 
 `manifest` is the first stop whenever reality seems to disagree with expectations — it shows what
 each branch *actually* has (including a legacy shared bucket, or a compute group that was never
