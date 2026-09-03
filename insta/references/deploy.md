@@ -73,8 +73,8 @@ provider; see [operate.md](operate.md) before treating a restart as proof the ap
 Provider credential **values** stay out of the general bundle (`insta secrets` / `insta run` carry
 only user-defined secrets). The one direct read is the postgres DSN — `insta db url` /
 `insta db connect` (gated `secrets.read`) — for psql, migrations, and tools outside compute; pick
-client tools of the server's Postgres major first (`pg_version` on `insta services list --json`, see
-[operate.md](operate.md)).
+client tools of the server's Postgres major first (`pg_version` on `insta services list --json`; a row
+without one falls back to the exact-version read in [operate.md](operate.md)).
 Everything else runs where the credentials are bound: the deployed app itself, or a one-shot
 `insta compute exec app -- <cmd>` (≤180s, no stdin) — migrations run either way (never as a
 startup gate; see the gotchas below).
