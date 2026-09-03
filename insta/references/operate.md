@@ -5,9 +5,27 @@
 ```bash
 insta status --json        # target api · login · linked project · current branch
 insta manifest --json      # every branch's db/storage/compute + URLs — the ground truth
-insta services list --json # what the project has
+insta services list --json # what the project has (postgres rows: pg_version = Postgres major)
 insta events --limit 50    # what happened (resources + govern + agent findings)
 ```
+
+Before any `pg_dump` / `pg_restore` / `psql` against a postgres service, read that service's Postgres
+major first: `pg_version` on its `services list --json` row (one per service — a branch with several
+postgres services has one each), or `ref.pgVersion` on the manifest's database resources (root and
+branch rows alike; the `pg 16` badge on the printed lines needs CLI ≥ 0.0.57). Use client tools of
+that same major — a dump taken by a newer client (17 against a 16 server) emits statements the
+server rejects, and a default restore keeps going past those errors and leaves the target partially
+loaded (`pg_restore` and `psql -f` only roll back as a unit under `--single-transaction`, psql also
+with `-v ON_ERROR_STOP=1`). Neither read wakes a suspended instance. Rows older than the field were
+backfilled from the image every instance was born from, so if a restore still fails on version
+grounds against an old instance, confirm with the exact version. A legacy row that never recorded a
+major shows `pg_version: null` and no `ref.pgVersion`; a platform that predates the field sends no
+`pg_version` key at all (and no `ref.pgVersion` on any row). For the exact version either way, on
+the same branch and service as the DSN (`--group <g>` when the branch has several postgres services):
+`psql "$(insta db url --branch <b> [--group <g>])" -c 'show server_version'` answers in one step (it
+wakes a suspended instance, like any connection); `insta db stats --json --branch <b> [--group <g>]`
+reports it as `serverVersion` but never wakes one, so the field is present only while the instance
+is running.
 
 `manifest` is the first stop whenever reality seems to disagree with expectations — it shows what
 each branch *actually* has (including a legacy shared bucket, or a compute group that was never

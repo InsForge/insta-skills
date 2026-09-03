@@ -25,7 +25,8 @@ insta secrets bindings --target compute/app --branch feat-x
 
 For direct access to a branch's DB from outside compute (psql, migrations, local tools):
 `insta db url --branch feat-x` prints that branch's connection string; `insta db connect --branch
-feat-x` opens psql on it.
+feat-x` opens psql on it. Before any dump or restore, match the client major to the branch's
+`pg_version` (`insta services list --json --branch feat-x`; see [operate.md](operate.md)).
 
 `insta secrets set <NAME> --service compute/app` scopes a **user-defined** secret to that compute
 service. It is separate from provider credential binding (`insta secrets bind`). Removing a service
