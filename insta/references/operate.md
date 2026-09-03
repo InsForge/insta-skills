@@ -22,8 +22,8 @@ grounds against an old instance, confirm with the exact version. A legacy row th
 major shows `pg_version: null` and no `ref.pgVersion`; a platform that predates the field sends no
 `pg_version` key at all (and no `ref.pgVersion` on any row). For the exact version either way, on
 the same branch and service as the DSN (`--group <g>` when the branch has several postgres services):
-`psql "$(insta db url --branch <b> --group <g>)" -c 'show server_version'` answers in one step (it
-wakes a suspended instance, like any connection); `insta db stats --json --branch <b> --group <g>`
+`psql "$(insta db url --branch <b> [--group <g>])" -c 'show server_version'` answers in one step (it
+wakes a suspended instance, like any connection); `insta db stats --json --branch <b> [--group <g>]`
 reports it as `serverVersion` but never wakes one, so the field is present only while the instance
 is running.
 
