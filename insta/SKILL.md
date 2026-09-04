@@ -287,8 +287,9 @@ not machine size × hours). Scale-to-zero is the default, so idle services cost 
 create) trades a small continuous RAM cost for zero cold starts — see
 [operate.md](references/operate.md). **The paid levers are the resource CEILING** (`insta compute limits`,
 `insta db limits` — per-machine size, see [operate.md](references/operate.md))
-**and machine COUNT** (`insta services scale` — horizontal): free plans stay
-at the minimum of both and get a 403 — `insta billing upgrade` first; `insta usage` /
+**and machine COUNT** (`insta services scale` — horizontal): a new service is born at its plan's
+ceiling and free plans may move within the free cap but not above it, and stay at one machine —
+beyond either is a 403 — `insta billing upgrade` first; `insta usage` /
 `insta billing` show cycle usage and cost. One free org per user. Full flags in
 [cli-reference.md](cli-reference.md).
 

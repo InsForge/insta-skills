@@ -72,7 +72,7 @@ most the app may burn, i.e. its blast radius. So it moves in both directions, an
 costs the customer nothing.
 
 ```bash
-insta compute limits                     # ceiling 1 vCPU / 256 MB  (plan max 2 vCPU / 2 GB)
+insta compute limits                     # ceiling 4 vCPU / 4 GB  (plan max 4 vCPU / 4 GB on free; a new service is born AT its plan cap)
 insta compute limits --memory 1gb        # set it — cpu derives from memory
 insta db limits --memory 8Gi --cpu 4     # same dial for postgres
 ```
@@ -81,7 +81,8 @@ insta db limits --memory 8Gi --cpu 4     # same dial for postgres
   vCPU only throttles, so it is derived unless `--cpu` is passed for a parallel workload. On
   compute, setting always requires `--memory` (`--cpu` is an override, never valid alone); on db,
   either flag alone works. Decimal (`mb`/`gb`) and binary (`Mi`/`Gi`) suffixes are both accepted.
-- **Paid plans.** Free services stay at the minimum ceiling — this is the one thing a plan gates,
+- **Paid plans.** A new service is born at its plan's ceiling (free 4 vCPU / 4 GB, pro 8 / 8) and
+  may move anywhere within it on any plan; raising ABOVE the free cap is the one thing a plan gates,
   precisely because usage billing means the size is no longer what you pay for.
 - **Compute ceilings snap to the provider's sizes** (vCPU comes from a fixed ladder; memory in
   256 MB steps within a per-vCPU band). A request that cannot be honored exactly is REJECTED with
