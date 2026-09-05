@@ -74,6 +74,14 @@ insta project list --org <id> --json
 Linking writes `./.insta/project.json` (project + org + current branch, per directory) and
 auto-installs the agent skills + the observe credential-audit hook into the repo.
 
+**What to commit vs what the CLI gitignores (CLI ≥ 0.0.59):** commit `./.insta/project.json`
+and the hook entries in `.claude/settings.json` / `.codex/hooks.json` (both portable). The CLI
+adds the machine-local rest to `.gitignore` itself in the same step that writes it:
+`.insta/observe/` and `.insta/audit.jsonl` (hook copy + this machine's findings), the installed
+skill dirs (`.claude/skills/`, `.agents/skills/`, `.github/skills/`) and `skills-lock.json`.
+Never ignore `.insta/` wholesale (that hides the project binding), and don't "clean up" those
+entries or the ignored files: a re-link regenerates them.
+
 **Naming:** use the directory/repo name for the project; things like `api` or `worker` are
 *service* names, not project names.
 

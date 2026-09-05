@@ -310,4 +310,7 @@ available. Via MCP: the `insta_feedback` tool takes the same fields (plus explic
   auto-installed on `project create`/`link`). It scans each tool-use for credential exposure
   (AWS / GitHub / Stripe / LLM / DB / JWT / private keys) and appends **redacted fingerprints** (never
   raw secrets) to `./.insta/audit.jsonl`. `insta observe report` renders it; `insta observe sync`
-  uploads findings into the project timeline (idempotent).
+  uploads findings into the project timeline (idempotent). The install gitignores its own local
+  state (`.insta/observe/`, `.insta/audit.jsonl`; CLI ≥ 0.0.59) and writes a portable, guarded
+  `.codex/hooks.json` entry, so the hook files are committable and `./.insta/project.json` is
+  never hidden by a blanket `.insta/` ignore.
