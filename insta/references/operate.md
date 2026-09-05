@@ -81,7 +81,7 @@ insta db limits --memory 8Gi --cpu 4     # same dial for postgres
   vCPU only throttles, so it is derived unless `--cpu` is passed for a parallel workload. On
   compute, setting always requires `--memory` (`--cpu` is an override, never valid alone); on db,
   either flag alone works. Decimal (`mb`/`gb`) and binary (`Mi`/`Gi`) suffixes are both accepted.
-- **Paid plans.** A new service is born at its plan's ceiling (free 4 vCPU / 4 GB, pro 8 / 8) and
+- **Plan caps.** A new service is born at its plan's ceiling (free 4 vCPU / 4 GB, pro 8 / 8) and
   may move anywhere within it on any plan; raising ABOVE the free cap is the one thing a plan gates,
   precisely because usage billing means the size is no longer what you pay for.
 - **Compute ceilings snap to the provider's sizes** (vCPU comes from a fixed ladder; memory in
