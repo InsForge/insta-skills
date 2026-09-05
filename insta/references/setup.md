@@ -75,12 +75,17 @@ Linking writes `./.insta/project.json` (project + org + current branch, per dire
 auto-installs the agent skills + the observe credential-audit hook into the repo.
 
 **What to commit vs what the CLI gitignores (CLI ≥ 0.0.59):** commit `./.insta/project.json`
-and the hook entries in `.claude/settings.json` / `.codex/hooks.json` (both portable). The CLI
-adds the machine-local rest to `.gitignore` itself in the same step that writes it:
-`.insta/observe/` and `.insta/audit.jsonl` (hook copy + this machine's findings), the installed
-skill dirs (`.claude/skills/`, `.agents/skills/`, `.github/skills/`) and `skills-lock.json`.
-Never ignore `.insta/` wholesale (that hides the project binding), and don't "clean up" those
-entries or the ignored files: a re-link regenerates them.
+and the hook entries in `.claude/settings.json` / `.codex/hooks.json` (neither contains a
+machine-specific path). The CLI adds the machine-local rest to `.gitignore` itself in the same
+step that writes it: `.insta/observe/` (the generated hook copy) and `.insta/audit.jsonl` (this
+machine's findings), the skill dirs `npx skills add` fills (`.claude/skills/`, `.agents/skills/`;
+`.github/skills/` is listed defensively) and `skills-lock.json`. Only the `.insta/*` entries and
+`skills-lock.json` are new in 0.0.59; the skill dirs were already ignored. Never ignore `.insta/`
+wholesale (that hides the project binding), and don't "clean up" the entries or the ignored
+files: a re-link regenerates `.insta/observe/` and the skills, while `.insta/audit.jsonl` is
+append-only local findings, so `insta observe sync` before removing it. An ignore entry cannot
+un-track a file that was committed earlier; the CLI reports those with a
+`git rm -r --cached …` hint.
 
 **Naming:** use the directory/repo name for the project; things like `api` or `worker` are
 *service* names, not project names.
