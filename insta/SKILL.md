@@ -24,8 +24,8 @@ seam. The `insta` CLI talks **only** to the InstaCloud control plane — you nev
 backend directly. A project can have any number of **services**, added on demand. The common service
 types you build directly against are:
 
-- **postgres** — relational DB with a fixed resource ceiling (raise it on paid plans with
-  `insta db limits`). Plain Postgres: connect any driver/ORM directly with the `DATABASE_URL`
+- **postgres** — relational DB born at its plan's resource ceiling (move it within the free cap on
+  any plan with `insta db limits`; above the free cap needs a paid plan). Plain Postgres: connect any driver/ORM directly with the `DATABASE_URL`
   you bind into compute env (below) — no vendor SDK or vendor skill. The DB is also publicly
   dialable from outside compute: `insta db url` prints the connection string and
   `insta db connect` opens a psql session — that's how you (or a human) reach it from a laptop,
