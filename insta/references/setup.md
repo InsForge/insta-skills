@@ -83,7 +83,7 @@ machine's findings), the skill dirs `npx skills add` fills (`.claude/skills/`, `
 `skills-lock.json` are new in 0.0.59; the skill dirs were already ignored. Never ignore `.insta/`
 wholesale (that hides the project binding), and don't "clean up" the entries or the ignored
 files: a re-link regenerates `.insta/observe/` and the skills, while `.insta/audit.jsonl` is
-append-only local findings, so `insta observe sync` before removing it. An ignore entry cannot
+append-only local findings, so run `insta observe sync` before removing it. An ignore entry cannot
 un-track a file that was committed earlier; the CLI reports those with a
 `git rm -r --cached …` hint.
 
