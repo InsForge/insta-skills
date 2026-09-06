@@ -3,10 +3,10 @@
 ## Reading the environment
 
 ```bash
-insta status --json        # target api · login · linked project · current branch
-insta manifest --json      # every branch's db/storage/compute + URLs — the ground truth
-insta services list --json # what the project has (postgres rows: pg_version = Postgres major)
-insta events --limit 50    # what happened (resources + govern + agent findings)
+insta --agent status --json        # target api · login · linked project · current branch
+insta --agent manifest --json      # every branch's db/storage/compute + URLs — the ground truth
+insta --agent services list --json # what the project has (postgres rows: pg_version = Postgres major)
+insta --agent events --limit 50    # what happened (resources + govern + agent findings)
 ```
 
 Before any `pg_dump` / `pg_restore` / `psql` against a postgres service, read that service's Postgres
@@ -22,8 +22,8 @@ grounds against an old instance, confirm with the exact version. A legacy row th
 major shows `pg_version: null` and no `ref.pgVersion`; a platform that predates the field sends no
 `pg_version` key at all (and no `ref.pgVersion` on any row). For the exact version either way, on
 the same branch and service as the DSN (`--group <g>` when the branch has several postgres services):
-`psql "$(insta db url --branch <b> [--group <g>])" -c 'show server_version'` answers in one step (it
-wakes a suspended instance, like any connection); `insta db stats --json --branch <b> [--group <g>]`
+`psql "$(insta --agent db url --branch <b> [--group <g>])" -c 'show server_version'` answers in one step (it
+wakes a suspended instance, like any connection); `insta --agent db stats --json --branch <b> [--group <g>]`
 reports it as `serverVersion` but never wakes one, so the field is present only while the instance
 is running.
 
@@ -34,12 +34,12 @@ deployed).
 ## Metrics & logs
 
 ```bash
-insta metrics compute [group] [--branch --from --to --step --json]
-insta logs compute [group] [--branch --limit --region --instance --json]
-insta logs compute [group] --since 2h     # time window (--from/--to also accepted) — pages ~7 days of history
-insta metrics redis|mysql|mongodb [group]   # managed DBs are Fly apps: same full metrics/logs
-insta logs redis|mysql|mongodb [group] [--deploy]
-insta metrics db · insta logs db      # postgres: provider-limited — returns a note, not series
+insta --agent metrics compute [group] [--branch --from --to --step --json]
+insta --agent logs compute [group] [--branch --limit --region --instance --json]
+insta --agent logs compute [group] --since 2h     # time window (--from/--to also accepted) — pages ~7 days of history
+insta --agent metrics redis|mysql|mongodb [group]   # managed DBs are Fly apps: same full metrics/logs
+insta --agent logs redis|mysql|mongodb [group] [--deploy]
+insta --agent metrics db · insta --agent logs db      # postgres: provider-limited — returns a note, not series
 ```
 
 insta-oss: metrics/logs return a clear "cloud-only / coming" 501 today — use `docker logs`/`docker
@@ -59,9 +59,9 @@ egress — never by machine size × hours. The idle mode only changes what "idle
 
 Flip it any time — it is a latency/cost dial, not a plan feature:
 
-- `insta services add compute <name> --always-on` — create pinned-warm.
-- `insta compute always-on on|off [service]` — toggle a live service.
-- `insta db always-on on|off [--group <g>]` — the same dial for a postgres service:
+- `insta --agent services add compute <name> --always-on` — create pinned-warm.
+- `insta --agent compute always-on on|off [service]` — toggle a live service.
+- `insta --agent db always-on on|off [--group <g>]` — the same dial for a postgres service:
   `off` (default) suspends the idle instance and cold-starts the first connection after idle;
   `on` keeps it warm.
 
@@ -72,9 +72,9 @@ most the app may burn, i.e. its blast radius. So it moves in both directions, an
 costs the customer nothing.
 
 ```bash
-insta compute limits                     # ceiling 4 vCPU / 4 GB  (plan max 4 vCPU / 4 GB on free; a new service is born AT its plan cap)
-insta compute limits --memory 1gb        # set it — cpu derives from memory
-insta db limits --memory 8Gi --cpu 4     # same dial for postgres
+insta --agent compute limits                     # ceiling 4 vCPU / 4 GB  (plan max 4 vCPU / 4 GB on free; a new service is born AT its plan cap)
+insta --agent compute limits --memory 1gb        # set it — cpu derives from memory
+insta --agent db limits --memory 8Gi --cpu 4     # same dial for postgres
 ```
 
 - **Memory is the dial.** It is the ceiling that actually bites (hitting it OOM-kills the app);
@@ -90,20 +90,20 @@ insta db limits --memory 8Gi --cpu 4     # same dial for postgres
 - Raising or lowering a compute ceiling **restarts the machine**; a postgres resize restarts the
   instance only if it is awake (a suspended one applies the new ceiling on its next wake).
 
-`insta services upgrade` still exists but is the pre-usage-billing control for **compute**: named
+`insta --agent services upgrade` still exists but is the pre-usage-billing control for **compute**: named
 specs, up-only. Prefer `limits`. For postgres it is not a fallback at all — an `upgrade` on a
-postgres service is rejected outright; resize it with `insta db limits` and grow its disk with
-`insta db volume`.
+postgres service is rejected outright; resize it with `insta --agent db limits` and grow its disk with
+`insta --agent db volume`.
 
 ## Compute volumes
 
 Compute persistent `/data` volumes are **not create-time only**:
 
 ```bash
-insta services add compute app --volume 1Gi  # attach at creation
-insta compute volume app --size 1Gi          # attach later if the service has no volume
-insta compute volume app                     # view size, mount path, and plan cap
-insta compute volume app --delete            # destroy the disk and all data
+insta --agent services add compute app --volume 1Gi  # attach at creation
+insta --agent compute volume app --size 1Gi          # attach later if the service has no volume
+insta --agent compute volume app                     # view size, mount path, and plan cap
+insta --agent compute volume app --delete            # destroy the disk and all data
 ```
 
 `--size` on a volumeless service attaches a volume, and it mounts on the **next deploy/redeploy**.
@@ -117,10 +117,10 @@ To take a service **offline on purpose** — a maintenance window, cost control,
 preview branch — use the lifecycle controls, which are a *persistent* override: a stopped/suspended
 service will **not** be re-woken by incoming traffic (unlike scale-to-zero's auto-wake).
 
-- `insta compute stop [service]` — clean shutdown; stays down until `start`.
-- `insta compute suspend [service]` — snapshot RAM for a faster resume; stays down until `start`.
-- `insta compute start [service]` — bring it back online and re-enable auto-wake.
-- `insta compute status [service]` — desired (your intent) vs. live runtime state.
+- `insta --agent compute stop [service]` — clean shutdown; stays down until `start`.
+- `insta --agent compute suspend [service]` — snapshot RAM for a faster resume; stays down until `start`.
+- `insta --agent compute start [service]` — bring it back online and re-enable auto-wake.
+- `insta --agent compute status [service]` — desired (your intent) vs. live runtime state.
 
 `[service]` is optional when the project has exactly one compute service. These work on all plans and
 require no approval. A billing suspension is separate: you can't `start` while an org is billing-
@@ -129,16 +129,16 @@ suspension force-stops always-on machines too — pinned-warm does not outlive t
 
 ## Restarting a compute service
 
-`insta compute restart [service]` (**CLI ≥ 0.0.51**; older builds answer with commander's unknown-command
+`insta --agent compute restart [service]` (**CLI ≥ 0.0.51**; older builds answer with commander's unknown-command
 error) re-runs the image reference the service **already** runs, against a freshly resolved env
 bundle. Reach for it in exactly two situations:
 
-1. **Config changed and the running app hasn't picked it up.** `insta secrets set`,
-   `insta secrets bind` and `insta secrets unbind` all change what the app *would* receive, not what
+1. **Config changed and the running app hasn't picked it up.** `insta --agent secrets set`,
+   `insta --agent secrets bind` and `insta --agent secrets unbind` all change what the app *would* receive, not what
    the running machine holds — env is baked into the machine at deploy time. `restart` is how that
    change lands without shipping a new version.
 2. **The machine is up but wedged.** A crash-looped or hung process is still `started`, so
-   `insta compute start` is a no-op on it — it only flips desired state and wakes a machine that is
+   `insta --agent compute start` is a no-op on it — it only flips desired state and wakes a machine that is
    *down*. `restart` cycles it.
 
 What it is **not**: a new deploy. It asks for no new version and no new spec — the image
@@ -146,7 +146,7 @@ What it is **not**: a new deploy. It asks for no new version and no new spec —
 
 One qualification, and it is the only way a restart can change what runs: **it does not pin a
 digest.** A service recorded against a moving tag (`app:latest`, `nginx:1.27`) gets whatever that
-tag resolves to *now* — the same as redeploying that tag would. Source deploys (`insta deploy <dir>`)
+tag resolves to *now* — the same as redeploying that tag would. Source deploys (`insta --agent deploy <dir>`)
 record a unique `insta-<timestamp>` label and are unaffected; only `--image` with a moving tag is.
 If you are restarting a production app to cycle a wedged machine, that is worth knowing before you
 run it.
@@ -154,7 +154,7 @@ run it.
 Rules worth knowing before you call it:
 
 - **The service must be running.** A deliberately stopped or suspended one is refused (400) and
-  pointed at `insta compute start`, which is also what re-enables auto-wake. A restart would
+  pointed at `insta --agent compute start`, which is also what re-enables auto-wake. A restart would
   otherwise silently undo the persistent override `stop` gives you.
 - **A service that has never been deployed** is refused the same way `exec` refuses it — deploy an
   image first.
@@ -163,7 +163,7 @@ Rules worth knowing before you call it:
   command reports the failure. That verdict is the useful part: a restart that "fails" here is
   telling you the app itself is broken, not the platform.
 - **An idle machine may not be booted or gated at all — and idle is the default.** What happens to a
-  scaled-to-zero machine depends on the compute plane behind your deployment — `insta manifest
+  scaled-to-zero machine depends on the compute plane behind your deployment — `insta --agent manifest
   --json` names it on each compute row (`provider`: `fly` or `microvm`, or the neutral `compute`
   when the platform did not report one, in which case assume neither behaviour). On the Fly-backed one it
   takes the new config *without waking*, coming up on it at the next request: nothing is
@@ -171,17 +171,17 @@ Rules worth knowing before you call it:
   waits for the service to be running and gates it.
   So do not read a fast, green restart of an idle service as proof the app still boots. If that
   proof is what you were after, **send it a request** and check the response — that is the one step
-  that means the same thing on both. (`insta compute always-on on` does *not* substitute: it changes
+  that means the same thing on both. (`insta --agent compute always-on on` does *not* substitute: it changes
   the idle policy without starting a suspended machine, so it leaves you ungated and pinned warm.)
 - **Gated under `deploy`** (unlike `start`/`stop`/`suspend`, which are ungated). Those change whether
   the service is running; this changes what it runs — it lands configuration through the same path a
   deploy does. So a project with `deploy` set to `deny` refuses it, and one set to `approve` relays it (`insta approvals approve
   <id>`; see governance.md). **If you only need to cycle a wedged machine under such a policy, use
-  `insta compute stop` then `insta compute start`** — that force-stops and relaunches the machine
+  `insta --agent compute stop` then `insta --agent compute start`** — that force-stops and relaunches the machine
   without going through a deploy. What it will *not* do is pick up new configuration.
 - All plans. Refused while the org is billing-suspended — the same door `start` stands behind. Any
   machine it wakes bills as ordinary uptime; one left asleep (see above) costs nothing.
-- **WebSocket apps keep their concurrency.** The connections-based concurrency `insta deploy
+- **WebSocket apps keep their concurrency.** The connections-based concurrency `insta --agent deploy
   --websocket` sets — and the 512 MB guest floor that rides with it — is recorded on the service, so
   a restart re-asserts it, as does any redeploy given no flag. A service deployed before that became
   a recorded setting has it recovered from its running machine. You do not need to redeploy a socket
@@ -189,7 +189,7 @@ Rules worth knowing before you call it:
 
 ## Running a one-shot command on a compute machine
 
-`insta compute exec [service] -- <command> [args...]` runs a single command on the service's live
+`insta --agent compute exec [service] -- <command> [args...]` runs a single command on the service's live
 machine and returns — **no interactive shell, no stdin**. Use it for a one-off migration, a debug
 `ls`/`cat`, or confirming a process is actually up.
 
@@ -205,7 +205,7 @@ machine and returns — **no interactive shell, no stdin**. Use it for a one-off
 - Gated on **both** `deploy` and `secrets.read` — a deny on either is a 403; an approve on either
   triggers the usual relay (`insta approvals approve <id>`; see governance.md).
 - A compute service with no image ever deployed 400s ("this service has no machines yet — deploy an
-  image first, then retry") — `insta deploy` it, then retry.
+  image first, then retry") — `insta --agent deploy` it, then retry.
 
 `[service]` is optional under the same rule as `start`/`stop`/`status` above.
 
@@ -220,10 +220,10 @@ Work the list in order — these cover ~all real failures seen so far:
    up to ~60s before concluding failure.
 3. **Migration-gated startup**: `CMD migrate && server` with a hung migration = nothing listening,
    empty logs. Fix the CMD to start the server regardless (see deploy.md).
-4. **Read the logs**: `insta logs compute [group] --branch <b> --limit 100` — crash loops, missing
+4. **Read the logs**: `insta --agent logs compute [group] --branch <b> --limit 100` — crash loops, missing
    env, bad image arch. A bare read is ONE provider page (~100 lines); when the failure is older
    than that, window it: `--since 2h`, or `--from <unix|ISO>` / `--to`.
-5. **Stale CLI**: unrecognized command / odd 4xx → `insta upgrade` (or re-run the installer), retry.
+5. **Stale CLI**: unrecognized command / odd 4xx → `insta --agent upgrade` (or re-run the installer), retry.
 6. **Gate, not failure**: a 202 "approval required" is not an error — relay it (governance.md).
 
 ## Failure-reporting discipline
