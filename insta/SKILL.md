@@ -21,6 +21,9 @@ allowed-tools: Bash(insta:*), Bash(npx:*), Bash(curl:*), Bash(command:*), Bash(g
 
 ## Agent execution mode (managed Platform)
 
+`agent-policy` is the only policy system. Humans use normal RBAC; only agent requests enter the
+policy evaluator. The former `policy` command and approval `--always` flag have been removed.
+
 Always use `insta --agent <command> …` when invoking the CLI as an agent, including setup and
 read-only commands. Examples include the global flag explicitly; with npx, use
 `npx -y insta@latest --agent <command> …`. Do not rely on environment detection alone.
@@ -216,11 +219,11 @@ allow/deny/approve, using the project's agent policy). When a command returns
 **"approval required" with an approval id**:
 
 - **Relay it to the human immediately and verbatim** — the exact line to run:
-  `insta approvals approve <id>` in a human terminal. `--always` does not loosen agent policy.
+  `insta approvals approve <id>` in a human terminal. Approvals authorize only one exact request.
   Don't summarize it away, don't retry the command, and don't report the task as failed without
   surfacing the approval first. Only an **admin** can approve.
 - Grants are **single-use**: after approval, **re-run the original command**; the next occurrence
-  prompts again unless policy was set to allow (`--always` / `insta --agent policy set <action> allow`).
+  prompts again unless a human explicitly changes the applicable `agent-policy` rule.
 - **Never work around a gate** (e.g. by hand-editing state or bypassing the CLI) — the gate is the
   product's safety model. A `deny` policy is a hard no: report it, don't circumvent it.
 

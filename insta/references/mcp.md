@@ -101,7 +101,8 @@ server is stateless, there is no "current project" like `./.insta/project.json`.
 | `insta --agent db stats` (`metrics` kind; `insight`/`activity`/`query-stats` are MCP-only) | `insta_db_stats` (read-only; `kind` = metrics, insight, activity, query-stats) |
 | `insta --agent usage` / `billing` | `insta_usage` / `insta_org_usage` (org-level, optional `from`/`to`) / `insta_billing_summary` / `insta_billing_overview` (org-level, current cycle only) |
 | `insta --agent billing upgrade/portal` | `insta_billing_checkout` / `insta_billing_portal` — return a Stripe **URL for the human**; relay it, never claim payment happened |
-| `insta --agent govern …` (policy/approvals) | `insta_policy_get` / `insta_policy_set` (admin-only; change policy only on explicit human request) / `insta_approvals_list` / `insta_approvals_approve` / `insta_approvals_deny` |
+| `insta --agent agent-policy get/set` | `insta_agent_policy_get` / `insta_agent_policy_set` (admin-only; restricted agents cannot change policy) |
+| `insta --agent approvals list` | `insta_approvals_list`; approve/deny require a human terminal and are rejected through MCP |
 | storage browse/download/delete | `insta_storage_list` / `insta_storage_download_url` / `insta_storage_delete` (no upload yet) |
 | `insta --agent template list/info/deploy` | `insta_template_search` / `insta_template_get` / `insta_template_deploy` / `insta_template_deployment_status` |
 | `insta --agent feedback` | `insta_feedback` (same fields; pass `projectId`/`branch` explicitly — see [cli-reference.md → Feedback](../cli-reference.md#feedback)) |

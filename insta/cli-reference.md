@@ -21,7 +21,8 @@ explicitly. Bare approval commands below are for a human admin to run, never the
 | `insta --agent agent-policy rule set <action> <allow\|deny\|approve> [--json]` | change an eligible unprotected action rule |
 | `insta --agent agent-policy revoke-sessions [--json]` | revoke ALL project CLI sessions by incrementing epoch |
 
-Agent policy is separate from legacy `insta --agent policy`. New/existing projects start with explicit
+`agent-policy` is the only policy command; the old `policy` command is removed. Human requests
+use normal RBAC without a policy gate. New/existing projects start with explicit
 `full_access`. Restricted agents cannot edit their own policy or protection list. Agent approvals
 bind the complete request and are single-use; a human admin runs `insta approvals approve <id>`,
 then the agent retries unchanged. MCP cannot approve on the human's behalf. Session files/private
@@ -82,8 +83,7 @@ keys and raw request data must not be included in source control or approval rep
 | `insta --agent billing` [`--org <id>`] [`--json`] | current cycle summary: tier / included credit / used / overage / status |
 | `insta --agent billing upgrade <pro\|team>` · `insta --agent billing portal` [`--org`] [`--no-open`] [`--json`] | Stripe Checkout to subscribe / Customer Portal to manage (opens a browser; `--no-open` prints the URL) |
 | `insta --agent events` [`--branch <b>`] [`--limit <n>`] [`--json`] | audit + agent-event timeline |
-| `insta --agent policy get` [`--json`] · `insta --agent policy set <action> <decision>` [`--json`] | view / set governance policy (actions include `service.add/remove/rename/scale/upgrade/setAccess` and `storage.read` / `storage.delete`) |
-| `insta --agent approvals list` [`--status`] [`--json`] · `insta approvals approve <id>` [`--always`] [`--json`] · `insta approvals deny <id>` [`--json`] | manage gated actions |
+| `insta --agent approvals list` [`--status`] [`--json`] · `insta approvals approve <id>` [`--json`] · `insta approvals deny <id>` [`--json`] | manage gated actions |
 | `insta --agent observe install` · `report` [`--json`] · `sync` | local credential-audit hook (see below) |
 | `insta --agent feedback --type <bug\|feature-request\|friction\|other> --component <cli\|mcp\|platform\|skills\|docs\|other> --title <t> --detail <d>` [`--file <path>`] [`--area <a>`] [`--command <c>`] [`--error <e>`] [`--expected <x>`] [`--workaround <w>`] [`--doc <ref>`] [`--severity <blocker\|major\|minor>`] [`--json`] | report an **InstaCloud-side** hurdle to the team (see [Feedback](#feedback)) — never for the user's own app. Works logged-out/unlinked/oss; ungated. Non-TTY with missing flags errors (never prompts); transport failures **exit 0** — continue the task, don't retry |
 | `insta --agent upgrade` · `insta --agent autoupdate [on\|off]` | self-update the CLI (binary re-runs the installer; npm uses `npm i -g`). Auto-update is **on by default** pre-1.0; `autoupdate off` / `INSTA_NO_AUTOUPDATE=1` disables. (CLI ≥ 0.0.5) |
@@ -323,8 +323,9 @@ available. Via MCP: the `insta_feedback` tool takes the same fields (plus explic
   human: the action returns `approval_required` — the hint prints to **stderr** and the command
   **exits 2** (CLI ≥ 0.0.37; distinct from exit 1 = error, so treat exit 2 as "pending, not
   failed"); an admin runs `insta approvals approve <id>`, then
-  you **re-run** it (single-use grant). `project.delete` and `service.remove` are gated by default. `--always` on approve
-  flips the policy to `allow`.
+  you **re-run the unchanged request** (single-use grant). In `branch-developer`, project deletion
+  is denied and unprotected service deletion requires approval. Approval never changes policy;
+  a human must explicitly update `agent-policy` for a lasting rule change.
 - `insta --agent approvals list` — inspect pending gates. Relay `insta approvals approve <id>`
   or `insta approvals deny <id>` to a human admin; agents cannot execute either decision.
 - `insta --agent events [--branch] [--limit]` — timeline of resource side-effects (project/branch creates,

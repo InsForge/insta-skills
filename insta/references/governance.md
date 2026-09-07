@@ -1,6 +1,7 @@
 # Governance & audit
 
-Use `insta --agent` for managed project operations. Platform verifies the logged-in user plus the
+`agent-policy` is the sole governance policy. Human requests use normal RBAC; old policy rules
+are archived and no longer enforced. Use `insta --agent` for managed project operations. Platform verifies the logged-in user plus the
 local agent session, then applies project agent policy. MCP calls carry server-signed assertions
 and use the same policy. Missing or invalid agent evidence fails closed; run `insta --agent setup agent`
 to refresh the linked directory's session, never retry as human.
@@ -52,8 +53,8 @@ insta agent-policy protect-branch main
 A gated action returns **"approval required" + an approval id** (HTTP 202; the action did NOT run):
 
 1. **Relay to the human immediately and verbatim**: the exact line, e.g.
-   `insta approvals approve 7c3c9b68-…` in a human terminal. `--always` only changes legacy human
-   governance; it does not loosen agent policy.
+   `insta approvals approve 7c3c9b68-…` in a human terminal. This approves one exact request;
+   `--always` is no longer supported. Lasting changes require explicit `agent-policy` configuration.
    Don't summarize it away, don't retry in a loop, don't report failure without surfacing it.
 2. Only a **human admin** can approve (`insta --agent approvals list --status pending --json`
    includes immutable request context). Agent CLI/MCP cannot approve their own requests.
