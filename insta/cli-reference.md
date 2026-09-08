@@ -277,6 +277,77 @@ and health-checks them, instead of a hand-rolled `services add` + `secrets set` 
   `partial` is **terminal**: the healthy services stay up and the created resources are kept, so read
   the log tail, then re-run the deploy to retry or `insta services remove <type> <name>` to clean up.
 
+### Writing `insta.template.yaml`
+
+Any repository can carry one, public or private, and `insta template deploy <dir|github-url>`
+deploys it without publishing anything. A complete minimal manifest:
+
+```yaml
+code: my-app                    # a-z 0-9 -, ≤39 chars; becomes the service/branch name prefix
+version: "1.0"                  # your own; bump it when the manifest changes
+services:
+  db:                           # a managed postgres: declare it BARE and the platform owns it
+    type: postgres              # no image, port, volume or env — anything else here is refused
+  web:                          # the key is the service name
+    type: web
+    image: ghcr.io/me/my-app:1.4.0   # MUST be publicly pullable, and MUST be pinned
+    port: 8080
+    healthcheck: /healthz       # required on a web service; an absolute path that returns 2xx
+    volume: true                # optional: mounts a persistent disk at /data
+    env:
+      platform:                 # credentials the platform mints, wired in at deploy time
+        DATABASE_URL: ${{services.db.DATABASE_URL}}
+      fixed:
+        DATA_DIR: /data         # baked in, the deployer never sees or sets it
+      required:
+        ADMIN_PASSWORD:
+          description: Shown at the prompt, so write it for whoever deploys this
+      optional:
+        SMTP_HOST: One-line description, the shorthand for a var with no other keys
+```
+
+**`env.platform` is how a managed service reaches the app, and a template with a database needs
+it.** The value is a reference, `${{services.<service>.<KEY>}}`, naming another service in this
+same manifest and the credential key it mints (a postgres service mints `DATABASE_URL`). The
+platform resolves it while writing variables, before the app starts.
+
+Do not plan to run `insta secrets bind` afterwards instead: `template deploy` creates the services
+and immediately deploys and health-checks the web one, so an app that needs `DATABASE_URL` would
+start without it and fail the gate. Binding after the fact then needs a redeploy, which defeats
+the point of shipping the service set as one unit.
+
+Generated secrets are declared once and referenced, so the value never leaves the platform:
+
+```yaml
+generated:
+  session-key: secret:32        # secret:N is the only generator family, N = 1..999
+services:
+  web:
+    env:
+      generated:
+        SESSION_SECRET: ${session-key}
+```
+
+Other optional top-level keys: `maintainer`, `sourceRepo`, `upstream` (what you packaged and its
+pin), `constraints` (`oneOf` / `allOf` over variable names, for variables that only make sense
+together), and `meta` (`name`, `tagline`, `category`, `tags`) which only the registry renders.
+
+**Four rules that are easy to get wrong, and where you find out:**
+
+| Rule | Where it bites |
+|---|---|
+| The image must be **publicly pullable**. A private repository is fine, a private image is not: the platform pulls anonymously, with no credential field anywhere. | Not at validation. The deploy creates services, then the machine fails to pull and the health gate fails. GHCR package visibility is separate from repository visibility, so a private repo can publish a public package. |
+| Use `image:`, never `build:`. The platform does not build from source for template deploys. Push the image yourself first. | Server-side, immediately: `services.<name> uses build: — server-side template deploys support image services only`. |
+| Deployable types are `web` and `postgres`. `worker` parses locally but the platform refuses it in v1. | **Local validation passes**, then the server rejects it: `services.<name> is a worker — server-side template deploys support web services only in v1`. |
+| A `postgres` service must be **bare** (`{ type: postgres }`) and needs **CLI ≥ 0.0.62**. Older CLIs reject it locally, `services.<name>.type must be web or worker`, even though the platform accepts it. | Locally on an old CLI, which is why the error names a type the platform does in fact take. `insta upgrade`. |
+
+Validate before you push by deploying the directory: `insta template deploy ./my-template -y`
+reports manifest problems first, so getting past them to the `--set` list (or, for a manifest with
+no unset required variables, to the deploy itself) means it parsed and validated. That covers
+structure, pinned images (`:latest` and tagless are rejected) and described variables. It does
+**not** cover the first three rows above, which pass locally and fail later: a private image, a
+`build:` key, and `type: worker`.
+
 ## Feedback
 
 `insta feedback` reports a hurdle in the **InstaCloud toolkit itself** to the InstaCloud team.
