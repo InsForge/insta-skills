@@ -165,7 +165,7 @@ Rules worth knowing before you call it:
   its port, the machines are rolled back — best-effort — to the config they were serving and the
   command reports the failure. That verdict is the useful part: a restart that "fails" here is
   telling you the app itself is broken, not the platform.
-- **An idle machine may not be booted or gated at all — and idle is the default.** What happens to a
+- **An idle machine may not be booted or gated at all — and a scale-to-zero service is idle between requests** (new compute is born always-on since 2026-09-07, so this applies to services switched to scale-to-zero). What happens to a
   scaled-to-zero machine depends on the compute plane behind your deployment — `insta manifest
   --json` names it on each compute row (`provider`: `fly` or `microvm`, or the neutral `compute`
   when the platform did not report one, in which case assume neither behaviour). On the Fly-backed one it
