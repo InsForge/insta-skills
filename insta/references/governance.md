@@ -1,43 +1,51 @@
 # Governance & audit
 
-**InstaCloud's gates are enforcement, not etiquette.** On most platforms, agent safety is a
-convention the agent is asked to follow; here the control plane refuses the action until a human
-approves — an agent that ignores its instructions still can't get past the gate. Work *with* this
-system; never around it.
+`agent-policy` is the sole governance policy. Human requests use normal RBAC; old policy rules
+are archived and no longer enforced. Use `insta --agent` for managed project operations. Platform verifies the logged-in user plus the
+local agent session, then applies project agent policy. MCP calls carry server-signed assertions
+and use the same policy. Missing or invalid agent evidence fails closed; run `insta --agent setup agent`
+to refresh the linked directory's session, never retry as human.
 
 ## The gates
 
-Every sensitive action passes a per-project policy check at the credential boundary:
+All projects start with explicit `full_access` (all classified project operations allowed within
+user RBAC). `read_only` denies mutations and allows sensitive reads. In `branch_developer`, all
+classified protected-branch writes are denied, including merge targets and indirect service writes.
+Developers explicitly select protected branches; names like `main` are not automatically protected.
+The unprotected-branch defaults are:
 
 | Action | Default | Guards |
 | --- | --- | --- |
-| `project.delete` | **approve** | destroying every resource |
-| `secrets.read` | allow | plaintext user-secret reads (`insta secrets` / `insta run`), the postgres DSN (`insta db url` / `insta db connect`), and names-only binding/source views; also gates `compute exec`, paired with `deploy` |
+| `project.delete` | **deny** | destroying every resource |
+| `secrets.read` | allow | plaintext user-secret reads (`insta --agent secrets` / `insta --agent run`), the postgres DSN (`insta --agent db url` / `insta --agent db connect`), and names-only binding/source views; also gates `compute exec`, paired with `deploy` |
 | `secrets.write` | allow | user-secret changes and provider credential bind/unbind |
 | `deploy` | allow | code reaching compute (and the build-token mint); also gates `compute restart` (which lands configuration through the same path) and `compute exec`, the latter paired with `secrets.read` |
-| `branch.delete` | allow | tearing down an environment |
+| `branch.delete` | **approve** | tearing down an environment |
 | `service.remove` | **approve** | deleting a service; also gates compute volume delete |
-| `service.add/scale/upgrade` | allow | resource mutations (scale/upgrade: paid plans) |
+| `service.add`, `service.rename`, `branch.create` | allow | ordinary development |
+| `service.scale`, `service.upgrade`, `service.setAccess`, `project.update` | **approve** | capacity, public access and project settings |
 | `storage.read` | allow | listing a bucket, downloading, previewing |
 | `storage.write` | allow | uploading an object |
-| `storage.delete` | allow | removing objects, one or in a batch |
+| `storage.delete`, `db.restore`, explicitly classified `db.destructive` | **approve** | deletion/restoration |
+| `agent_policy.update`, `branch.protection.update`, project administration | **deny** | an agent cannot loosen its own restrictions |
 
 Decisions: `allow` (proceed) · `deny` (hard no) · `approve` (human in the loop).
 
-`insta compute exec` is the one command gated on **two** actions at once (`deploy` **and**
-`secrets.read`) — a `deny` on either is a 403, and an `approve` on either needs its own relay before
-the command proceeds. Grants are **single-use and consumed per-gate**, not per-command: with both
-actions set to `approve`, a full walkthrough takes **three approvals**, not two. Attempt 1 202s on
-`deploy`. Once that's granted, attempt 2 consumes it, passes `deploy`, and 202s on `secrets.read`
-(so `deploy`'s grant is already spent again). Once `secrets.read` is granted, attempt 3 needs
-`deploy` approved a *second* time before `secrets.read`'s own already-granted grant finally gets
-consumed and the command runs. And since an approval records only the action name, not which
-command triggered it, the request an admin sees just says `deploy` — nothing distinguishes an
-`exec`-triggered approval from a real `insta deploy`.
+Compound requests (service PATCH, compute exec, template deploy) evaluate every action before any
+side effect: `deny > approve > allow`. One agent approval binds the complete action set, actor,
+resources, parameters and body hash. Consuming it authorizes that exact request once.
+
+V1 does not parse SQL: the existing `db.query` console action is classified as a sensitive read,
+including when its SQL writes data. Sensitive credential reads also permit direct database access.
+Do not interpret `read_only` or protected branches as SQL-level isolation. Likewise, an agent with
+user credentials and unrestricted shell can issue unmarked HTTP; this version governs the official
+toolchains, not deliberate credential bypass.
 
 ```bash
-insta policy get --json
-insta policy set <action> <decision>     # admin decision — propose it, don't assume it
+insta --agent agent-policy get --json
+# Human/admin configuration only — relay these commands; do not execute as an agent:
+insta agent-policy set branch-developer
+insta agent-policy protect-branch main
 ```
 
 ## The approval flow (relay procedure — CRITICAL)
@@ -45,18 +53,20 @@ insta policy set <action> <decision>     # admin decision — propose it, don't 
 A gated action returns **"approval required" + an approval id** (HTTP 202; the action did NOT run):
 
 1. **Relay to the human immediately and verbatim**: the exact line, e.g.
-   `insta approvals approve 7c3c9b68-… ` (`--always` also flips the policy to allow permanently).
+   `insta approvals approve 7c3c9b68-…` in a human terminal. This approves one exact request;
+   `--always` is no longer supported. Lasting changes require explicit `agent-policy` configuration.
    Don't summarize it away, don't retry in a loop, don't report failure without surfacing it.
-2. Only an **admin** can approve (`insta approvals list --status pending` shows what's waiting).
-3. Grants are **single-use**: after approval, **re-run the original command**. The next occurrence
-   prompts again unless the policy was set to allow.
+2. Only a **human admin** can approve (`insta --agent approvals list --status pending --json`
+   includes immutable request context). Agent CLI/MCP cannot approve their own requests.
+3. Grants are **single-use**: after approval, **re-run the unchanged original command**, with the
+   same session and source mode. Changing the resource or parameters requires a new approval.
 4. `deny` policy = a hard no: report it and stop. Working around a gate (editing state, bypassing
    the CLI) is never acceptable — the gate is the product's safety model.
 
 ## The audit timeline
 
 ```bash
-insta events [--branch <b>] [--limit <n>] [--json]
+insta --agent events [--branch <b>] [--limit <n>] [--json]
 ```
 
 One per-project timeline containing: resource side-effects (creates, deploys + URLs, deletes),
@@ -70,7 +80,7 @@ Auto-installed on `project create`/`link` (PostToolUse hook for Claude Code / Co
 
 - Scans each tool call for credential exposure — AWS / GitHub / Stripe / LLM / DB URLs / JWTs /
   private keys — and appends **redacted fingerprints** (never raw secrets) to `./.insta/audit.jsonl`.
-- `insta observe report [--json]` — review locally. `insta observe sync` — upload findings into
+- `insta --agent observe report [--json]` — review locally. `insta --agent observe sync` — upload findings into
   the project timeline (idempotent, deduped).
 - Agent etiquette on top of the hook: treat `./.env` as the only credential source; never print
   secret values into chat, logs, code, or commits; if the report shows a leak finding, surface it
@@ -79,9 +89,8 @@ Auto-installed on `project create`/`link` (PostToolUse hook for Claude Code / Co
 ## Patterns for agents
 
 - **Before destructive work** (`project delete`, `branch delete` of someone else's branch): check
-  `insta events` for recent activity and say what will be destroyed when relaying the approval.
-- **Batch your gates:** if a workflow will hit the same gate repeatedly (e.g. many deploys under
-  `deploy: approve`), tell the human once and suggest `approve --always` or a policy change,
-  instead of interrupting N times.
-- **After approval, verify:** the grant being consumed shows up in `insta events` — confirm the
+  `insta --agent events` for recent activity and say what will be destroyed when relaying the approval.
+- **Repeated gates:** explain the recurring action to the human; an admin may explicitly change an
+  eligible agent-policy rule. Never loosen policy just to get your own request through.
+- **After approval, verify:** the grant being consumed shows up in `insta --agent events` — confirm the
   re-run actually happened before reporting the task complete.
