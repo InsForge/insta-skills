@@ -295,6 +295,8 @@ services:
     healthcheck: /healthz       # required on a web service; an absolute path that returns 2xx
     volume: true                # optional: mounts a persistent disk at /data
     env:
+      platform:                 # credentials the platform mints, wired in at deploy time
+        DATABASE_URL: ${{services.db.DATABASE_URL}}
       fixed:
         DATA_DIR: /data         # baked in, the deployer never sees or sets it
       required:
@@ -304,9 +306,15 @@ services:
         SMTP_HOST: One-line description, the shorthand for a var with no other keys
 ```
 
-A postgres service mints its own credentials; bind them into the app afterwards with
-`insta secrets bind DATABASE_URL postgres/db --to compute/web` rather than trying to declare them
-here.
+**`env.platform` is how a managed service reaches the app, and a template with a database needs
+it.** The value is a reference, `${{services.<service>.<KEY>}}`, naming another service in this
+same manifest and the credential key it mints (a postgres service mints `DATABASE_URL`). The
+platform resolves it while writing variables, before the app starts.
+
+Do not plan to run `insta secrets bind` afterwards instead: `template deploy` creates the services
+and immediately deploys and health-checks the web one, so an app that needs `DATABASE_URL` would
+start without it and fail the gate. Binding after the fact then needs a redeploy, which defeats
+the point of shipping the service set as one unit.
 
 Generated secrets are declared once and referenced, so the value never leaves the platform:
 
@@ -320,8 +328,9 @@ services:
         SESSION_SECRET: ${session-key}
 ```
 
-Optional top-level keys: `maintainer`, `sourceRepo`, `upstream` (what you packaged and its pin),
-and `meta` (`name`, `tagline`, `category`, `tags`) which only the registry renders.
+Other optional top-level keys: `maintainer`, `sourceRepo`, `upstream` (what you packaged and its
+pin), `constraints` (`oneOf` / `allOf` over variable names, for variables that only make sense
+together), and `meta` (`name`, `tagline`, `category`, `tags`) which only the registry renders.
 
 **Four rules that are easy to get wrong, and where you find out:**
 
