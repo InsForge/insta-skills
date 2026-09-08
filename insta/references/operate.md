@@ -50,16 +50,19 @@ stats` on the branch's containers directly if you must, and don't retry the CLI 
 **Billing is always by actual app usage** — vCPU·min burned, GB·min of RAM resident, storage,
 egress — never by machine size × hours. The idle mode only changes what "idle" consumes:
 
-- **Scale-to-zero (default)**: idle machines suspend and auto-wake on the next request. An idle
-  service costs **nearly nothing**; the trade is a cold start (typically a few seconds) on the
-  first request after idling.
-- **Always-on (opt-in, all plans)**: machines never suspend, so there are **no cold starts** — but
-  the idle app keeps its RAM resident (plus a trickle of vCPU), and that real usage bills
-  continuously (roughly $1–2.50/month for an idle minimum-spec app, mostly RAM).
+- **Always-on (the birth default for compute since 2026-09-07, all plans)**: machines never
+  suspend, so there are **no cold starts** — but the idle app keeps its RAM resident (plus a
+  trickle of vCPU), and that real usage bills continuously (roughly $1–2.50/month for an idle
+  minimum-spec app, mostly RAM).
+- **Scale-to-zero (opt-in for compute; the default for postgres)**: idle machines suspend and
+  auto-wake on the next request. An idle service costs **nearly nothing**; the trade is a cold
+  start (typically a few seconds) on the first request after idling. Note: a service whose work
+  arrives only on outbound connections (a bot polling its platform, a cron) is never woken by
+  anyone, so it needs always-on.
 
 Flip it any time — it is a latency/cost dial, not a plan feature:
 
-- `insta services add compute <name> --always-on` — create pinned-warm.
+- `insta services add compute <name> --no-always-on` — create scale-to-zero (`--always-on` states the default explicitly).
 - `insta compute always-on on|off [service]` — toggle a live service.
 - `insta db always-on on|off [--group <g>]` — the same dial for a postgres service:
   `off` (default) suspends the idle instance and cold-starts the first connection after idle;

@@ -87,7 +87,7 @@ The deploy command exiting ≠ the app serving. After every deploy:
 curl -s -o /dev/null -w '%{http_code}' <printed-url>   # poll ~every 3s, up to ~60s
 ```
 
-Scale-to-zero branches (the default) cold-start on the first request — allow a slow first hit; always-on services (`insta compute always-on on`) skip this. `200` (or the
+A scale-to-zero service (`--no-always-on` at create, or `insta compute always-on off`) cold-starts on the first request — allow a slow first hit; new compute services are born always-on (since 2026-09-07) and skip this. `200` (or the
 app's expected status) → report deployed **with the URL**. Anything else → triage per
 [operate.md](operate.md); never claim success you didn't observe.
 
