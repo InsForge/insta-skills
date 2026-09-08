@@ -305,7 +305,8 @@ services:
 ```
 
 A postgres service mints its own credentials; bind them into the app afterwards with
-`insta secrets bind` (see [Secrets](#secrets)) rather than trying to declare them here.
+`insta secrets bind DATABASE_URL postgres/db --to compute/web` rather than trying to declare them
+here.
 
 Generated secrets are declared once and referenced, so the value never leaves the platform:
 
@@ -332,9 +333,11 @@ and `meta` (`name`, `tagline`, `category`, `tags`) which only the registry rende
 | A `postgres` service must be **bare** (`{ type: postgres }`) and needs **CLI ≥ 0.0.62**. Older CLIs reject it locally, `services.<name>.type must be web or worker`, even though the platform accepts it. | Locally on an old CLI, which is why the error names a type the platform does in fact take. `insta upgrade`. |
 
 Validate before you push by deploying the directory: `insta template deploy ./my-template -y`
-fails on the `--set` list once the manifest itself is accepted, so reaching the variable list means
-the manifest parsed and validated. Local validation covers structure, pinned images (`:latest` and
-tagless are rejected) and described variables; it does **not** cover the three rules above.
+reports manifest problems first, so getting past them to the `--set` list (or, for a manifest with
+no unset required variables, to the deploy itself) means it parsed and validated. That covers
+structure, pinned images (`:latest` and tagless are rejected) and described variables. It does
+**not** cover the first three rows above, which pass locally and fail later: a private image, a
+`build:` key, and `type: worker`.
 
 ## Feedback
 
