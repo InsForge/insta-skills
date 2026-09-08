@@ -179,8 +179,9 @@ branch URL on success — that means the platform accepted and rolled the machin
 serves:
 
 1. Poll the printed URL (`curl -s -o /dev/null -w '%{http_code}'`) every ~3s for up to ~60s.
-   Scale-to-zero branches (the default) cold-start on the first request — allow a slow first hit
-   (always-on services skip this; see references/operate.md).
+   A scale-to-zero service (created with `--no-always-on`, or switched off with `insta compute
+   always-on off`) cold-starts on the first request — allow a slow first hit. New compute services
+   are born always-on (since 2026-09-07) and skip this; see references/operate.md.
 2. `200` (or the app's expected status) → deployed; report the URL.
 3. Still failing → the ordered triage list in [operate.md](references/operate.md) (port mismatch
    and migration-gated startup account for most failures).
@@ -282,9 +283,10 @@ The gate mechanics and the relay procedure are above; the observe credential-aud
 timeline, and agent audit patterns are in [governance.md](references/governance.md).
 
 **Billing is by actual app usage** (vCPU·min / RAM GB·min actually consumed + storage + egress —
-not machine size × hours). Scale-to-zero is the default, so idle services cost nearly nothing;
-`always-on` (all plans: `insta compute always-on`, `insta db always-on`, or `--always-on` at
-create) trades a small continuous RAM cost for zero cold starts — see
+not machine size × hours). New compute services are born always-on (since 2026-09-07): no cold
+starts, and the idle app's resident RAM bills at actual usage. Scale-to-zero (`--no-always-on` at
+create, or `insta compute always-on off`) makes an idle service cost nearly nothing at the price of
+a cold start; postgres is unchanged (`insta db always-on`, off by default) — see
 [operate.md](references/operate.md). **The paid levers are the resource CEILING** (`insta compute limits`,
 `insta db limits` — per-machine size, see [operate.md](references/operate.md))
 **and machine COUNT** (`insta services scale` — horizontal): a new service is born at its plan's
