@@ -96,7 +96,7 @@ app's expected status) → report deployed **with the URL**. Anything else → t
 - **Never gate container startup on migrations.** `CMD migrate && server` + a hung migration =
   a "successful" deploy that serves nothing, with empty logs. Run migrations non-blocking:
   `timeout 30 <migrate> || echo skipped; <start-server>`.
-- **Cold start ≠ down.** Non-default branches suspend when idle; first request wakes them.
+- **Cold start ≠ down.** A scale-to-zero compute service (`--no-always-on`, or switched off with `insta compute always-on off`) suspends when idle; the first request wakes it. New compute is born always-on and does not.
 - **Redeploy replaces.** Compute is stateless — anything written to the container filesystem is
   gone on the next deploy. State belongs in the branch's postgres/storage.
 

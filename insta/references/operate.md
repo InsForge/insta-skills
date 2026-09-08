@@ -219,8 +219,9 @@ Work the list in order — these cover ~all real failures seen so far:
 1. **Port mismatch** (most common): `--port` ≠ the port the app listens on. Symptom: deploy
    "succeeds", every request refused/000. Fix: redeploy with the app's actual listen port; bind
    `0.0.0.0`.
-2. **Cold start**: non-default branches suspend when idle — first request can take seconds. Poll
-   up to ~60s before concluding failure.
+2. **Cold start**: a scale-to-zero compute service (`--no-always-on`, or `insta compute always-on
+   off`; new compute is born always-on) suspends when idle — its first request can take seconds.
+   Poll up to ~60s before concluding failure.
 3. **Migration-gated startup**: `CMD migrate && server` with a hung migration = nothing listening,
    empty logs. Fix the CMD to start the server regardless (see deploy.md).
 4. **Read the logs**: `insta logs compute [group] --branch <b> --limit 100` — crash loops, missing
