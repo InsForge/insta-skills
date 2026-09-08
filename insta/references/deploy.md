@@ -87,7 +87,7 @@ The deploy command exiting ≠ the app serving. After every deploy:
 curl -s -o /dev/null -w '%{http_code}' <printed-url>   # poll ~every 3s, up to ~60s
 ```
 
-Scale-to-zero branches (the default) cold-start on the first request — allow a slow first hit; always-on services (`insta --agent compute always-on on`) skip this. `200` (or the
+A scale-to-zero service (`--no-always-on` at create, or `insta --agent compute always-on off`) cold-starts on the first request — allow a slow first hit; new compute services are born always-on (since 2026-09-07) and skip this. `200` (or the
 app's expected status) → report deployed **with the URL**. Anything else → triage per
 [operate.md](operate.md); never claim success you didn't observe.
 
@@ -96,7 +96,7 @@ app's expected status) → report deployed **with the URL**. Anything else → t
 - **Never gate container startup on migrations.** `CMD migrate && server` + a hung migration =
   a "successful" deploy that serves nothing, with empty logs. Run migrations non-blocking:
   `timeout 30 <migrate> || echo skipped; <start-server>`.
-- **Cold start ≠ down.** Non-default branches suspend when idle; first request wakes them.
+- **Cold start ≠ down.** A scale-to-zero compute service (`--no-always-on`, or switched off with `insta --agent compute always-on off`) suspends when idle; the first request wakes it. New compute is born always-on and does not.
 - **Redeploy replaces.** Compute is stateless — anything written to the container filesystem is
   gone on the next deploy. State belongs in the branch's postgres/storage.
 
