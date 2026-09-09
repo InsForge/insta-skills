@@ -328,7 +328,7 @@ command you already have:
 | `type: cron` | no equivalent: `pg_cron`, or a scheduler inside an always-on compute service |
 | `type: pserv` (private service) | a compute service, but **flag it to the user**: `insta services add` assigns a default domain to every compute service, so a Render private service stops being unreachable from the internet |
 | `runtime: python` / `node` / `ruby` / `go` (any non-`image`) | `insta compute connect-repo <owner/repo> X` — nixpacks does what the buildpack did |
-| `buildCommand:` | **nixpacks will NOT run it.** Read the script it names and re-home every step: a `collectstatic`, an asset build or an `npm run build` belongs in a `Dockerfile` or in nixpacks' own detected build, and a `migrate` belongs in `insta compute exec` after the deploy, never in the image build. Skipping this row is how a build succeeds and the app still fails |
+| `buildCommand:` | **nixpacks does not run the script**, but do not assume nothing in it happens: its Django provider runs `manage.py migrate` itself at start (measured — a full `admin, auth, contenttypes, sessions` migrate ran against the bound insta pg16 with no instruction from us). The **asset** half is what it skips, so read the script and re-home anything else: `collectstatic` or an `npm run build` needs a `Dockerfile` or nixpacks' own detected build step. A migration you want under your control rather than run at every boot belongs in `insta compute exec` |
 | `startCommand:` | nixpacks picks its own, which is often not this one. If the app needs a specific server invocation (`gunicorn mysite.asgi:application -k uvicorn.workers.UvicornWorker`, a `-w` count, an ASGI vs WSGI entrypoint), that is a `Dockerfile` `CMD`, so this row can turn the whole service into the Dockerfile lane |
 | `runtime: image`, `image.url` | `insta deploy --image <url> --port <n>` instead; do NOT reach for connect-repo |
 | `envVars: [{fromDatabase: {...}}]` | `insta secrets bind DATABASE_URL postgres/X --to compute/Y` |
@@ -342,7 +342,7 @@ command you already have:
 | `numInstances` | `insta services scale compute X <n>` (1 to 10, same region, paid plans) |
 | `plan:` | `insta compute limits` / `insta db limits` |
 | `region:` | `--region` on `insta services add` (values from `insta regions`) |
-| `autoDeploy: false` | nothing to do: `connect-repo` deploys on push, and `builds.auto_deploy` is not implemented on the compute plane anyway |
+| `autoDeploy: false` | nothing to do, and the default runs the other way for a **public** repo: `connect-repo --public` prints `deploys are manual from here: pushes will not redeploy (public repo)`, so nothing auto-deploys until you ask. `builds.auto_deploy` is not implemented on the compute plane either |
 
 **Check for platform-detection env vars before you deploy anything.** Apps routinely branch on
 whether the *source platform's own* variable is present, and every one of those branches flips when
@@ -363,15 +363,29 @@ if RENDER_EXTERNAL_HOSTNAME: ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 ```
 
 `ALLOWED_HOSTS` stays empty, so Django answers **HTTP 400 `DisallowedHost` to every request** on the
-insta domain. **The platform will report the service as healthy while this happens**, because the
-check is TCP on the port (`adapters/fly.ts`: `config.checks = { port: { type: 'tcp' } }`), and the
-app is listening — it just refuses every request. So `insta compute status` looking fine proves
-nothing; curl the URL. Setting the two variables to fake the source platform trades that for a **500**,
-because `DEBUG=False` switches on a manifest static-files backend whose manifest is built by the
-`buildCommand` nixpacks never ran. **Set the app's own host/debug settings explicitly instead of
-impersonating the old platform** — here, `ALLOWED_HOSTS` to the insta domain and `DEBUG` off, with
-the static build re-homed per the `buildCommand` row. Heroku (`DYNO`), Railway (`RAILWAY_*`), Fly
-(`FLY_APP_NAME`) and Vercel (`VERCEL`) all have the same idiom, so expect this on every source.
+insta domain. **The platform reports the service as healthy while this happens**, because the check
+is TCP on the port (`adapters/fly.ts`: `config.checks = { port: { type: 'tcp' } }`) and the app is
+listening — it just refuses every request. `insta compute status` looking fine proves nothing; curl
+the URL.
+
+All three outcomes below were **measured end to end** on this repo (prod, insta-compute, 2026-09-09),
+after `connect-repo` built it with nixpacks and the `DATABASE_URL` binding worked:
+
+| what you set | result |
+|---|---|
+| nothing | **400** `DisallowedHost` on every request |
+| `RENDER_EXTERNAL_HOSTNAME=<insta domain>` **only** | **200**, the page serves |
+| that **plus** `RENDER=1` | **500** |
+
+Read the ladder before copying the middle row. It works because `DEBUG` keys off `RENDER`, which
+stays unset, so the host list gets its entry while the manifest static-files backend never switches
+on. Adding `RENDER=1` flips `DEBUG=False`, which activates that backend, whose manifest the
+`collectstatic` in `buildCommand` was supposed to build — hence the 500. **So the middle row leaves
+the app serving with `DEBUG=True`, which leaks tracebacks and is not an end state.** Use it to get a
+cutover answering, then fix it properly: give the app its own way to set `ALLOWED_HOSTS` and `DEBUG`
+from env instead of impersonating the platform it left, and re-home the static build per the
+`buildCommand` row. Heroku (`DYNO`), Railway (`RAILWAY_*`), Fly (`FLY_APP_NAME`) and Vercel
+(`VERCEL`) all have the same idiom, so expect this on every source.
 
 A quieter cousin: a config helper with a **fallback default** hides a failed binding instead of
 reporting it. `dj_database_url.config(default='postgresql://…@localhost:5432/…')` means a missing
