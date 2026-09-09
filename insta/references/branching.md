@@ -62,7 +62,7 @@ compute capacity stays fixed).
 insta --agent branch create feat-x [--from <parent>]   # isolated env, parent's data
 insta --agent branch switch feat-x                     # per-directory current branch
 insta --agent secrets bindings --target compute/app    # confirm inherited compute credential bindings
-insta --agent secrets                                  # writes user-defined secrets, if any
+insta --agent secrets                                  # .env: user secrets + the branch's primary provider credentials
 insta --agent deploy . --port 8080                     # put the code on feat-x's compute
 # → test against the printed URL (public; verify per deploy.md), iterate freely —
 #   nothing you do here (schema, data, deploys) can touch main

@@ -64,7 +64,8 @@ insta --agent deploy . --group app --port 8080
 
 If the source has a single credential (`postgres`), `--source-name` is optional. Sources with several
 credential names (`storage`, `redis`, `mysql`, `mongodb`) need `--source-name`. Production code reads
-`process.env`; **never bake `./.env` into the image** (it's local-dev/user-secrets only). Changing a
+`process.env`; **never bake `./.env` into the image** (it is the local-dev seam, and it carries
+live provider credentials). Changing a
 secret or binding takes effect on the **next deploy**, or on **`insta --agent compute restart`** (CLI ≥
 0.0.51) for a service already running — no hot reload in either case: the machine takes a new config
 and restarts on it, in place. Whether an *idle* machine is woken to do so depends on the compute
@@ -78,7 +79,9 @@ the branch has a postgres. A **compute container** gets nothing it was not expli
 `insta --agent db connect` (gated `secrets.read`) — for psql, migrations, and tools outside compute; pick
 client tools of the server's Postgres major first (`pg_version` on `insta --agent services list --json`; a row
 without one falls back to the exact-version read in [operate.md](operate.md)).
-Everything else runs where the credentials are bound: the deployed app itself, or a one-shot
+A **non-primary** service of any type has no direct read at all — bind it, or read that service's
+own env with `insta --agent secrets --service compute/<name>`. Otherwise its credentials run only
+where they are bound: the deployed app itself, or a one-shot
 `insta --agent compute exec app -- <cmd>` (≤180s, no stdin) — migrations run either way (never as a
 startup gate; see the gotchas below).
 

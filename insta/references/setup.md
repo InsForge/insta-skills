@@ -116,8 +116,10 @@ they are **not** injected into **compute** until you bind them to a compute serv
 psql, a migration, any tool outside compute — via `insta --agent db url` (prints it) or
 `insta --agent db connect` (opens psql); match those client tools to the server's Postgres major
 first (`pg_version` on `insta --agent services list --json`, see [operate.md](operate.md)). A
-**non-primary** same-type service's credentials are not in the bundle: read them with
-`insta --agent db url --group <name>`, or bind them.
+**non-primary** same-type service's credentials are not in the bundle. Only **postgres** has a
+direct read for one (`insta --agent db url --group <name>`); for storage, redis, mysql and mongodb
+there is none — bind it to a compute service, then read that service's env with
+`insta --agent secrets --service compute/<name>`.
 
 ## Ship-from-zero (the whole chain)
 

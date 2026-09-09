@@ -75,7 +75,9 @@ service that minted them and use canonical names inside that scope (`DATABASE_UR
 (`insta --agent secrets` → `.env`, `insta --agent run`) carries one set per type, from that type's
 **primary** service on the branch — but they do **not** automatically appear in **compute env**: a
 container gets a provider credential only through an explicit binding, and a non-primary same-type
-service is reachable via `insta --agent db url --group <name>` or a binding, not the bundle. Bind
+service is not in the bundle: for **postgres** read it with `insta --agent db url --group <name>`;
+for every other type there is no direct read at all — bind it, or read the env of a compute service
+it is bound to with `insta --agent secrets --service compute/<name>`. Bind
 the credentials a compute service needs,
 then deploy — or, if the service is already running, `insta --agent compute restart` (CLI ≥ 0.0.51) to pick
 the binding up without deploying a new one. It re-runs the image *reference* already recorded, so a
@@ -281,7 +283,7 @@ If a request spans two areas ("deploy and check it's healthy"), load both and an
 
 ## Two non-negotiables (wherever you are)
 
-- **Prefer `insta --agent run -- <cmd>`** for user-defined project/branch secrets — the bundle is fetched per
+- **Prefer `insta --agent run -- <cmd>`** for anything that needs the branch's secrets — the bundle is fetched per
   invocation and injected into the child environment only; nothing is written to disk, so nothing can
   leak or be committed. The bundle also carries the branch's **canonical** provider credentials —
   one set per type, from that type's primary service — so a local run reaches the database without
@@ -289,13 +291,15 @@ If a request spans two areas ("deploy and check it's healthy"), load both and an
   `insta --agent secrets bind`, then deploy (or `insta --agent compute restart` an already-running
   service, CLI ≥ 0.0.51 — a binding change never reaches a live machine on its own).
 - When a file is genuinely needed, treat `./.env` (from `insta --agent secrets`; auto-gitignored in git
-  repos) as the **only** file-based source for user-defined secrets — never hardcode or print secret
+  repos) as the **only** file-based source for secrets — it holds your user secrets and the
+  branch's primary provider credentials — never hardcode or print secret
   values. `DATABASE_URL`, `AWS_*` / `BUCKET_NAME`, `REDIS_*`, `MYSQL_*`, and `MONGODB_*` are service
   credentials that reach production compute only through explicit `insta --agent secrets bind` rules. For
   direct use **outside** compute the sanctioned read is `insta --agent db url` / `insta --agent db connect`
   (postgres; gated `secrets.read`) — pipe it (`psql "$(insta --agent db url)"`), never paste the DSN into
-  files or code. Everything else runs where the credentials are bound (the app itself, or a
-  one-shot `insta --agent compute exec <svc> -- <cmd>`).
+  files or code. For every type, the branch's **primary** service's credentials are already in
+  `insta --agent secrets` / `insta --agent run`. A **non-primary** service has no direct read: bind
+  it, or read that service's own env with `insta --agent secrets --service compute/<name>`.
   User-set config belongs in `insta --agent secrets set <NAME>` (project-wide) / `--branch` for branch
   overrides — never hand-edit `.env` values you want to persist.
 - Track **every** schema change as a file under `migrations/` so it replays on a branch DB and again

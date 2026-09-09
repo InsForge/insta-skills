@@ -117,8 +117,9 @@ Two destinations, opposite defaults — do not conflate them:
 - **The local-dev seam** (`insta --agent secrets` → `.env`, and `insta --agent run`) **does** carry
   them: one set per credential-minting service type, from that type's **primary** service on the
   branch. So a `.env` has a working `DATABASE_URL` as soon as the branch has a postgres. A
-  non-primary same-type service is reachable through `insta --agent db url --group <name>` or an
-  explicit binding, not through the bundle.
+  non-primary same-type service is not in the bundle. **Postgres** has a direct read for it,
+  `insta --agent db url --group <name>`; **no other type does** — bind it, or read the env of a
+  compute service it is bound to with `insta --agent secrets --service compute/<name>`.
 - **A compute deployment does not.** A container receives a provider credential **only** through an
   explicit binding. Decide what each service should get:
 
