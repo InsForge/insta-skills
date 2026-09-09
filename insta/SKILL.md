@@ -298,8 +298,9 @@ If a request spans two areas ("deploy and check it's healthy"), load both and an
   direct use **outside** compute the sanctioned read is `insta --agent db url` / `insta --agent db connect`
   (postgres; gated `secrets.read`) — pipe it (`psql "$(insta --agent db url)"`), never paste the DSN into
   files or code. For every type, the branch's **primary** service's credentials are already in
-  `insta --agent secrets` / `insta --agent run`. A **non-primary** service has no direct read: bind
-  it, or read that service's own env with `insta --agent secrets --service compute/<name>`.
+  `insta --agent secrets` / `insta --agent run`. A **non-primary** service is not in the bundle:
+  postgres has the `--group <name>` read above, and **no other type has any direct read** — bind it,
+  or read that service's own env with `insta --agent secrets --service compute/<name>`.
   User-set config belongs in `insta --agent secrets set <NAME>` (project-wide) / `--branch` for branch
   overrides — never hand-edit `.env` values you want to persist.
 - Track **every** schema change as a file under `migrations/` so it replays on a branch DB and again

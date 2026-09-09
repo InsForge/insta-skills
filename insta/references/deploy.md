@@ -79,9 +79,9 @@ the branch has a postgres. A **compute container** gets nothing it was not expli
 `insta --agent db connect` (gated `secrets.read`) — for psql, migrations, and tools outside compute; pick
 client tools of the server's Postgres major first (`pg_version` on `insta --agent services list --json`; a row
 without one falls back to the exact-version read in [operate.md](operate.md)).
-A **non-primary** service of any type has no direct read at all — bind it, or read that service's
-own env with `insta --agent secrets --service compute/<name>`. Otherwise its credentials run only
-where they are bound: the deployed app itself, or a one-shot
+A non-primary service of **any other type** (storage, redis, mysql, mongodb) has no such read —
+bind it, or read that service's own env with `insta --agent secrets --service compute/<name>`.
+Otherwise its credentials run only where they are bound: the deployed app itself, or a one-shot
 `insta --agent compute exec app -- <cmd>` (≤180s, no stdin) — migrations run either way (never as a
 startup gate; see the gotchas below).
 
