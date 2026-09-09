@@ -35,12 +35,20 @@ same step that created it. Print **names**, never values.
 insta project create <name>        # or: insta project link <project-id>
 ```
 
-**It rewrites `~/.insta/project.json`, the GLOBAL default link**, so any directory without its own
-link now points here. Capture that file's contents before you run this, and restore them after.
-Do not trust the command's own output: it prints `linked ./.insta/project.json`, which reads as
-local, but **no local `.insta/` directory is created at all** (verified on prod, 2026-09-09). Note
-this is a *different* file from `~/.insta/config.json`, which holds the env and session and carries
-no project link.
+**The link is per directory, but it is resolved by walking UP**, git-style: `findProjectRoot`
+climbs until it finds a directory containing `.insta/project.json`, and `writeProject` writes to
+whatever that search returns (`cli/src/config.ts`). The consequence is the part that bites. Once
+`~/.insta/project.json` exists, **every directory under your home that has no `.insta/` of its own
+resolves to your home directory**, so running this in a scratch directory silently repoints the
+link that all of those directories share. Observed on prod, 2026-09-09: a create run in a fresh
+temp dir created no local `.insta/` at all and rewrote `~/.insta/project.json`, while printing
+`linked ./.insta/project.json`, which reads as local.
+
+**So do not rely on the link at all when you are one of several workers.** Pass
+`INSTA_PROJECT_ID` (plus `INSTA_ORG_ID`), which `readProject` honours ahead of any file: "an
+explicit parameter outranks ambient state". If you do use the link, capture the resolved file first
+and restore it after. Note `~/.insta/project.json` is a different file from `~/.insta/config.json`,
+which holds the env and session and carries no project link.
 
 **1. Provision, bind, deploy.**
 
@@ -246,15 +254,47 @@ status is the pipeline's), **`pipefail` catches a `pg_dump` failure**. You need 
 *Pass:* `grep -c '^ERROR'` is 0 **and** step 4's fidelity checks match. Exit 0 alone proves nothing.
 **4. Verify the data.**
 
+**Count every table exactly, and never from `pg_stat_user_tables`.** `n_live_tup` is an estimate:
+it reads **0 for a fully populated table** once statistics have been reset (measured — 3,000 rows,
+`pg_stat_reset()`, estimate `0`), and stats are also lost across some restarts. Two sides both
+reporting 0 would compare equal and verify nothing. This query counts each table for real, in one
+round trip, and covers **all** schemas rather than a top-N slice:
+
 ```bash
+cat > /tmp/counts.sql <<'SQL'
+select n.nspname || '.' || c.relname as tbl,
+       (xpath('/row/c/text()',
+              query_to_xml(format('select count(*) as c from %I.%I', n.nspname, c.relname),
+                           false, true, '')))[1]::text::bigint as rows
+from pg_class c
+join pg_namespace n on n.oid = c.relnamespace
+where c.relkind = 'r'
+  and n.nspname not in ('pg_catalog', 'information_schema')
+  and n.nspname not like 'pg_toast%'
+order by 1;
+SQL
+
 T="$(insta db url --group db)"             # scriptable; `insta db connect` is interactive
-psql "$T" -c "select relname, n_live_tup from pg_stat_user_tables order by n_live_tup desc limit 5"
-psql "$T" -c "select max(id), max(created_at) from <append_only_table>"
-psql "$T" -c "select sequencename, last_value from pg_sequences order by sequencename"
-psql "$T" -c "select extname from pg_extension order by extname"
+psql "$T"          -At -F, -f /tmp/counts.sql | sort > /tmp/target.csv
+psql "$SOURCE_URL" -At -F, -f /tmp/counts.sql | sort > /tmp/source.csv
+diff /tmp/source.csv /tmp/target.csv && echo "row counts identical"
 ```
 
-Run the same four against the source and diff. **"Extensions present" cannot fail** on its own — a
+It enumerates from `pg_class`, not from a stats view, so a reset cannot hide a table from it either.
+Verified after `pg_stat_reset()`: exact counts for a 1,000-row table, a 7-row table, an **empty**
+table and a table in a non-`public` schema, with views excluded. An empty table is worth having in
+the diff: a top-N-by-size query never shows one, and "the table is there but empty" is a migration
+failure that looks like nothing at all.
+
+Then the rest:
+
+```bash
+psql "$T" -c "select sequencename, last_value from pg_sequences order by sequencename"
+psql "$T" -c "select extname from pg_extension order by extname"
+psql "$T" -c "select max(id), max(created_at) from <append_only_table>"
+```
+
+Run those against the source too and diff. **"Extensions present" cannot fail** on its own — a
 fresh insta postgres already ships `pgcrypto`, `uuid-ossp`, `pgaudit`, `vector`, `pg_stat_monitor`
 and `pg_stat_statements`, so the dump's `CREATE EXTENSION IF NOT EXISTS` is a no-op. Compare the
 **sets** source-vs-target instead of asserting presence.
@@ -274,7 +314,8 @@ Exclude `contype = 'n'` rows, since PG18 records `NOT NULL` there and pg16 does 
 as text, and confirm `convalidated` is true rather than merely that the constraint exists.
 Then **call every function the third query lists, once.** Their bodies were never parsed during the
 restore, so this is the only thing that catches PG17/18 SQL inside them.
-*Pass:* counts and latest rows match; sequences at or above the source's; extension sets reconciled;
+*Pass:* the per-table count diff is **empty** (every table, exact, both sides); latest rows match;
+sequences at or above the source's; extension sets reconciled;
 after a downgrade, constraints validated, `indexdef`s equal, and every function callable.
 
 **5. Bring the app onto the target — and `start` does NOT re-resolve env.**
@@ -569,9 +610,17 @@ volumes carry the same caveat as any. **The one real obstacle is secrets:** `fly
 returns names and digests only, because "the actual value of the secret is only available to the
 application", so there is no export. Read them off a running machine with
 the machine before you stop it — but **read one name at a time, never the whole env**:
-`fly ssh console -a <app> -C 'printenv <NAME>'` in a shell whose history you control, or better,
-have the user re-enter them. `fly ssh console -C env` dumps every credential the app holds into
-your transcript at once; do not use it.
+**pipe it, never print it** — one name at a time, straight into the target, so the value never
+reaches your output:
+
+```bash
+fly ssh console -a <app> -C 'printenv <NAME>' | tr -d '\r\n' | insta secrets set <NAME>
+```
+
+`insta secrets set` reads stdin, so nothing is displayed and nothing enters shell history. **Never
+`fly ssh console -C env`**: it dumps every credential the app holds into your transcript at once.
+And never run the `printenv` on its own to "check" a value first; that is the leak. If you cannot
+pipe, have the user re-enter the value instead.
 
 > **Verified as of 2026-09-09**, by executing this runbook against a throwaway project with a seeded
 > Postgres: the cutover ordering, the guard behaviour in step 3, `start` not re-resolving env, the
