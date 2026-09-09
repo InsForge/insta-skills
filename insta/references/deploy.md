@@ -28,13 +28,13 @@ confirm it matches the server's listen port.
 
 ## How source mode builds (what actually happens)
 
-1. The dir must contain a `Dockerfile`. There is **no nixpacks/buildpack lane on this path** — the CLI exits 1 without one. Dockerfile-less options: add one from the templates below (run `insta --agent build <dir>` first: it reports the detected install/start commands to base it on, and only a dir with its own Dockerfile verdicts `deployable`), use `--image`, or connect the repo on GitHub — that server-side lane builds Dockerfile-less repos with nixpacks. Do **not** save the nixpacks Dockerfile that `insta --agent build --explain` prints as your `Dockerfile`: it `COPY`s `.nixpacks/` support files the dir does not have.
+1. The dir must contain a `Dockerfile`. There is **no nixpacks/buildpack lane on this path** — the CLI exits 1 without one. Dockerfile-less options: add one from the templates below (run `insta --agent build <dir>` first: it reports the detected install/start commands to base it on, and only a dir with its own Dockerfile verdicts `deployable`), use `--image`, or connect the repo to the service (`insta --agent compute connect-repo <owner/repo> [service]`) — that server-side lane builds Dockerfile-less repos with nixpacks. Do **not** save the nixpacks Dockerfile that `insta --agent build --explain` prints as your `Dockerfile`: it `COPY`s `.nixpacks/` support files the dir does not have.
 2. Needs the `fly` CLI locally (auto-installed via Homebrew on macOS) but **NO Fly account/login** —
    the platform mints a **short-lived, app-scoped deploy token** (this mint is govern-gated: it can
    return `approval_required` *before* any build runs).
 3. The build runs on **remote builders** (no local Docker); the image is pushed and **pinned by
    digest** (tags race the registry), then deployed like any image.
-4. insta-oss: source mode is not implemented yet — use `--image`.
+4. insta-oss: source mode builds the image with your local Docker — same command; `insta --agent compute connect-repo` is cloud-only there (501).
 
 ## `--port` — the #1 deploy mistake
 
