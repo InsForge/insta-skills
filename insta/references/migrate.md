@@ -384,8 +384,21 @@ on. Adding `RENDER=1` flips `DEBUG=False`, which activates that backend, whose m
 the app serving with `DEBUG=True`, which leaks tracebacks and is not an end state.** Use it to get a
 cutover answering, then fix it properly: give the app its own way to set `ALLOWED_HOSTS` and `DEBUG`
 from env instead of impersonating the platform it left, and re-home the static build per the
-`buildCommand` row. Heroku (`DYNO`), Railway (`RAILWAY_*`), Fly (`FLY_APP_NAME`) and Vercel
-(`VERCEL`) all have the same idiom, so expect this on every source.
+`buildCommand` row.
+
+**Every source hits this, but the shape differs, and Render is the mildest case.** Read from each
+platform's own official Django example, which is what real user code is derived from:
+
+| source | what its example does | what you get here |
+|---|---|---|
+| **Render** | `ALLOWED_HOSTS` appended from `RENDER_EXTERNAL_HOSTNAME` | 400, and **one env var fixes it** (the ladder above) |
+| **Heroku** | `IS_HEROKU_APP = "DYNO" in os.environ`; then `["*"]` if set, else `[".localhost", "127.0.0.1", "[::1]", "0.0.0.0", "[::]"]` | 400, and **no env var can fix it** — both branches are literals, so the code must change. `DEBUG` keys off `ENVIRONMENT`, not the platform, so at least it stays off |
+| **Fly** | hardcoded `['localhost', '127.0.0.1', '.fly.dev']` (their guide names no Fly variable) | 400, **code must change**. Do not go looking for `FLY_APP_NAME` in the settings; it is usually not there |
+| **Railway** | `ALLOWED_HOSTS = ["*"]`, unconditional | **works as-is** — they bought that by giving up the check entirely |
+
+So the useful expectation is not "grep for the platform variable" but **"assume the app cannot name
+its own new hostname, and find out how it learns one."** Sometimes that is a variable you can set,
+often it is a literal you have to edit, and occasionally (Railway) there is nothing to do.
 
 A quieter cousin: a config helper with a **fallback default** hides a failed binding instead of
 reporting it. `dj_database_url.config(default='postgresql://…@localhost:5432/…')` means a missing
