@@ -9,13 +9,12 @@ that the source stops taking writes before the target starts, which is the rollb
 Everything else lives here: the ordering and the pass conditions that keep a cutover from silently
 losing writes.
 
-**Running as an agent.** Bare `insta` commands already engage agent mode inside Claude Code,
-Codex and Cursor — `detectAgent` keys off `CLAUDECODE`, `CODEX_THREAD_ID`/`CODEX_CI` and
-`CURSOR_AGENT` (`cli/src/agent.ts`), and the session is project-bound, so a mutation without one
-fails with `agent session missing, expired, or for another project/environment`. **If your harness
-sets none of those, pass `--agent`** (`cli/src/index.ts`: "run as an agent with a verified project
-session and project agent policy") so you get the same verified session and policy gate instead of
-running as the human. Do not drop agent mode to get past a governance refusal; get the approval.
+**Running as an agent.** Every `insta` invocation below carries `--agent`, per SKILL.md's rule:
+always pass it, including for read-only commands, and do not rely on environment detection. The
+session is project-bound, so a mutation without one fails with `agent session missing, expired, or
+for another project/environment` — run `insta --agent setup agent` rather than dropping the flag.
+**Never remove `--agent` to get past a governance refusal**; relay the approval command to a human
+admin and retry the unchanged request.
 
 ## The ordered cutover
 
@@ -124,6 +123,22 @@ has no image yet, so a clever one-liner can hand you the wrong string silently.
 Any 2xx/3xx, or a 5xx from the app's own code, means it is serving and step 5 can proceed. **A 400
 here is the hostname problem from the pre-flight**, not a database or build fault, and it is fixed
 in step 5 rather than by redeploying. Working against an empty database is expected at this point.
+
+**Then stop it again, before anything else.**
+
+```bash
+insta --agent compute stop <service>
+```
+
+This deploy exists to prove the image builds, the binding resolves and the app serves. It must not
+leave a **second writable system standing.** `insta --agent services add` assigns a compute service
+a default domain, so from the moment this deploy gives it a machine the app is reachable on the
+public internet, and any write it takes — a session row, a signup, an analytics insert — lands in
+the target database *before* the restore. That breaks the cutover twice over: step 3 requires an
+empty target and would now collide, and step 2's promise that only one side accepts writes is no
+longer true. `compute stop` takes it offline and, per the CLI, "traffic will NOT wake it until
+`start`". Step 5 brings it back with `start` then `restart`, which is the sequence it already
+prescribes for a stopped service.
 
 **2. Stop the writers — on BOTH sides.**
 
@@ -241,7 +256,17 @@ Also expect a catalog difference that is **not** a fidelity loss: PG18 materiali
 `contype='n'` rows in `pg_constraint` and pg16 has none, so exclude those rows when diffing
 catalogs, after confirming `attnotnull` is set on every column.
 
-**The target must be empty.** A full dump restored into a populated database is not an incremental
+**The target must be empty — confirm it, do not assume it.** If the app was up at any point in
+step 1, check before restoring rather than trusting that it wrote nothing:
+
+```bash
+psql "$T" -At -f /tmp/counts.sql        # the count query from step 4; must return nothing at all
+```
+
+A single row from a health check or a session store is enough to collide the restore. If anything
+is there, drop and re-add the postgres service (below) rather than trying to clean it by hand.
+
+A full dump restored into a populated database is not an incremental
 sync: it collides on existing objects and primary keys. **Prefer adding a fresh postgres service**
 over dropping the database. `DROP DATABASE` needs a DSN retargeted to `/postgres`, is blocked by
 insta's own `pg_cron` session until you `pg_terminate_backend` it, and the recreated database
@@ -303,12 +328,25 @@ and `pg_stat_statements`, so the dump's `CREATE EXTENSION IF NOT EXISTS` is a no
 things quietly:
 
 ```bash
-psql "$T" -c "select conname, contype, convalidated from pg_constraint
-              where connamespace = 'public'::regnamespace and contype <> 'n' order by conname"
-psql "$T" -c "select indexname, indexdef from pg_indexes
-              where schemaname = 'public' order by indexname"
-psql "$T" -c "select oid::regprocedure from pg_proc where pronamespace = 'public'::regnamespace"
+psql "$T" -At -F'|' -c "select n.nspname||'.'||c.conname, c.contype, c.convalidated
+      from pg_constraint c join pg_namespace n on n.oid = c.connamespace
+      where n.nspname not in ('pg_catalog','information_schema') and n.nspname not like 'pg_toast%'
+        and c.contype <> 'n' order by 1"
+psql "$T" -At -F'|' -c "select schemaname||'.'||indexname, indexdef from pg_indexes
+      where schemaname not in ('pg_catalog','information_schema') order by 1"
+psql "$T" -At      -c "select format('%I.%I(%s)', n.nspname, p.proname,
+                                    pg_get_function_identity_arguments(p.oid))
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname not in ('pg_catalog','information_schema') order by 1"
 ```
+
+**All three cover every non-system schema, not just `public`.** An app with its own schema can lose
+a constraint, an index definition or a callable function there and still pass a `public`-only check,
+which is the same blind spot the row counts had. The function query builds its name with `format`
+rather than `oid::regprocedure`, because the latter omits the schema for anything on the
+`search_path` — so a source and target with different search paths would diff as different while
+being identical. Verified: identical output across a `set search_path` change, with objects in both
+`public` and a second schema.
 
 Exclude `contype = 'n'` rows, since PG18 records `NOT NULL` there and pg16 does not. Diff `indexdef`
 as text, and confirm `convalidated` is true rather than merely that the constraint exists.
@@ -604,7 +642,10 @@ as any: creating a target volume does not copy contents.
 
 **Fly.** The easiest source of the four, and the only one that is not a Postgres downgrade: Fly
 Managed Postgres runs **16**, the same major as insta's, so step 3 needs no filter. A Fly app also
-already has a `Dockerfile` and a `fly.toml`, so `insta --agent deploy . --port <n>` works directly and
+already has a `Dockerfile` and a `fly.toml`, so `insta --agent deploy . --port <n>` works directly
+**on Fly-backed compute only** — the same restriction as everywhere else in this file: on
+insta-compute the platform refuses it outright, so confirm the target's plane before planning
+around it, and fall back to `connect-repo`. Where it is available it also means
 `internal_port` in `fly.toml` is the `--port` value. `[processes]` maps onto compute services, and
 volumes carry the same caveat as any. **The one real obstacle is secrets:** `fly secrets list`
 returns names and digests only, because "the actual value of the secret is only available to the
