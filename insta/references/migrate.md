@@ -57,60 +57,113 @@ it.
 
 **3. Copy into a CLEAN target.**
 
-**Check BOTH majors before anything else, because they decide whether this step is possible at
-all.** `pg_dump` reads a server **older than or equal to** itself and never a newer one, and its
-output restores into a server **at or above** its own major. So the client has to satisfy
-
-```
-source_major  ≤  client_major  ≤  target_major
-```
-
-and when the **source is newer than the target there is no client that satisfies it.** That is a
-major-version *downgrade*, which pg_dump does not support in either direction: a pg16 client refuses
-to read a pg18 server outright, and a pg18 client emits statements pg16 rejects, starting at the
-first `SET` — `ERROR: unrecognized configuration parameter "transaction_timeout"` (a PG17+ setting).
+**Read both majors first.** They decide which client you need, and whether the schema has hard
+blockers.
 
 ```bash
-insta services list                       # target major, e.g. postgres/db [pg16] — NOT selectable
-# source major:  psql "$SOURCE_URL" -c 'show server_version'
+insta services list                       # target major, e.g. postgres/db [pg16], NOT selectable
+psql "$SOURCE_URL" -c 'show server_version'
 ```
 
-**Upgrade or equal (source ≤ target)** — the normal case. Pin a client at the target's major:
+The one hard rule is `client_major >= source_major`. A newer server cannot be read by an older
+client and there is no escape hatch: `pg_dump` 16 against an 18 server aborts with
+`pg_dump: error: aborting because of server version mismatch`, and `--format=custom` makes it worse,
+not better, because `pg_restore` 16 rejects an 18 archive at the header
+(`unsupported version (1.16) in file header`). So always dump with a client at or above the source
+major, and use plain format when the target is older, because plain text is the only form you can
+filter.
+
+**Upgrade or equal (source <= target).** Nothing special.
 
 ```bash
 set -o pipefail
-docker run --rm postgres:16 pg_dump --no-owner --no-privileges "$SOURCE_URL" \
+pg_dump --no-owner --no-privileges "$SOURCE_URL" \
   | psql -v ON_ERROR_STOP=1 "$(insta db url --group db)" 2>&1 | tee restore.log
 grep -c '^ERROR' restore.log              # must print 0
 ```
 
-**Downgrade (source > target)** — today this is Render (pg18) and Railway (pg18) into InstaCloud's
-pg16, i.e. **both documented sources**. There is no supported one-liner. Two constrained routes,
-neither blessed:
+**Downgrade (source > target).** Today this is every documented source: Render pg18 and Railway
+pg18 into InstaCloud pg16. **This works, at full fidelity, and it is a tested procedure**, not a
+workaround. `pg_dump` from 18 emits exactly one statement pg16 does not know.
 
-- Dump plain-format with a client at the **source** major, then strip the statements pg16 rejects
-  before restoring. Filterable offenders are prelude noise (PG17+ `SET`s, `\restrict` /
-  `\unrestrict` psql meta-commands); a **semantic** incompatibility is not filterable and ends the
-  route.
-- `pg_dump --data-only` with the schema built against pg16 by hand.
+```bash
+set -o pipefail
+pg_dump --format=plain --no-owner --no-privileges "$SOURCE_URL" \
+  | grep -v -E '^(SET transaction_timeout|\\restrict |\\unrestrict )' \
+  | psql -v ON_ERROR_STOP=1 "$(insta db url --group db)" 2>&1 | tee restore.log
+grep -c '^ERROR' restore.log              # must print 0
+```
 
-Either way **verify fidelity, not exit status** (step 4): a restore that exits `0` having lost a
-sequence position, a constraint or an index is a failed migration. Escalate rather than improvise if
-neither route preserves the schema — the real fix is a selectable target major, and it is not in the
-CLI today.
+Why each piece is there:
 
-A full dump restored into a populated database is **not** incremental sync — it collides on existing
-objects and primary keys, so the target must be empty. **Prefer adding a fresh postgres service**
-over dropping the database: `DROP DATABASE` needs a DSN retargeted to `/postgres`, is blocked by
+- `SET transaction_timeout = 0;` is a PG17 GUC. Of the 12 `SET`s a PG18 `pg_dump` emits, this is the
+  **only** one pg16 rejects. In a 1,400 line realistic dump it is the single offending line.
+- `\restrict` / `\unrestrict` are psql meta-commands added by the CVE-2025-8714 fix. They fail only
+  on psql older than 15.14 / 16.10 / 17.6 (`invalid command \restrict`, exit 3). Filtering them
+  makes the command work on any psql, at the cost of that guard. Acceptable when the source is the
+  user's own database, not acceptable for a dump from a third party.
+- `--no-owner --no-privileges` is **not optional** against Render or Railway. Without it the restore
+  dies on `ERROR: role "render_app" does not exist`.
+
+Custom-format archives have no filter hook, so route them through text:
+
+```bash
+pg_restore --no-owner --no-privileges -f - source.dump \
+  | grep -v -E '^(SET transaction_timeout|\\restrict |\\unrestrict )' \
+  | psql -v ON_ERROR_STOP=1 "$(insta db url --group db)"
+```
+
+**Never** use `pg_restore` without `--exit-on-error` as the procedure. It reaches full fidelity on a
+clean schema, but "ignore all errors" equally swallows every blocker below.
+
+**Hard blockers: PG17/18 constructs that cannot be filtered.** If any appears, the restore stops
+there and the schema needs reworking by hand. Escalate to the user with the specific construct
+rather than improvising a rewrite.
+
+| Construct | Introduced | Error |
+|---|---|---|
+| `CREATE COLLATION … provider = builtin` | 17 | `unrecognized collation provider: builtin`, then cascading "collation does not exist" |
+| Virtual generated column | 18 | dumped without `STORED`/`VIRTUAL`, so `syntax error at or near ")"` |
+| `NOT NULL … NO INHERIT` | 18 | `syntax error at or near "NO"` |
+| `ADD CONSTRAINT … NOT NULL … NOT VALID` | 18 | `syntax error at or near "NOT"` |
+| `PRIMARY KEY (id, valid_at WITHOUT OVERLAPS)` | 18 | `syntax error at or near "WITHOUT"` |
+| `FOREIGN KEY (…, PERIOD valid_at)` | 18 | `syntax error at or near "valid_at"` |
+| `CHECK (…) NOT ENFORCED` | 18 | `syntax error at or near "ENFORCED"` |
+| `DEFAULT uuidv7()` | 18 | `function uuidv7() does not exist` |
+| `JSON_TABLE(…)` in a view | 17 | `syntax error at or near "AS"` |
+| `now() AT LOCAL` in a view | 17 | `syntax error at or near "LOCAL"` |
+| `random(1, 10)` | 17 | `function random(integer, integer) does not exist` |
+| `xmltext(…)` | 17 | `function xmltext(text) does not exist` |
+| An extension the target lacks | any | `extension "…" is not available` |
+
+**Two failures that restore with exit 0 and break later.** These are the dangerous ones, because
+every guard above passes.
+
+1. **Named `NOT NULL` constraints (PG18).** `c text CONSTRAINT c_must_exist NOT NULL` restores
+   clean, and `attnotnull` is set so enforcement survives, but pg16 records **no `pg_constraint`
+   row**, so the constraint name is silently gone. A later migration doing
+   `ALTER TABLE … DROP CONSTRAINT c_must_exist` will fail on the migrated database only.
+2. **PG17/18 SQL inside function bodies.** `pg_dump` emits `SET check_function_bodies = false`, so
+   plpgsql bodies are never parsed during a restore. `MERGE … RETURNING` and `RETURNING OLD.*`
+   restore silently and fail at call time (`syntax error at or near "RETURNING"`,
+   `missing FROM-clause entry for table "old"`). **A clean restore proves nothing about functions.
+   Call every one of them once** as part of step 4.
+
+Also expect a catalog difference that is **not** a fidelity loss: PG18 materializes `NOT NULL` as
+`contype='n'` rows in `pg_constraint` and pg16 has none, so exclude those rows when diffing
+catalogs, after confirming `attnotnull` is set on every column.
+
+**The target must be empty.** A full dump restored into a populated database is not an incremental
+sync: it collides on existing objects and primary keys. **Prefer adding a fresh postgres service**
+over dropping the database. `DROP DATABASE` needs a DSN retargeted to `/postgres`, is blocked by
 insta's own `pg_cron` session until you `pg_terminate_backend` it, and the recreated database
 **loses the platform's preinstalled extensions** (`pgcrypto`, `uuid-ossp`, `pgaudit`, `vector`,
-`pg_stat_monitor`, `pg_stat_statements` → only `plpgsql` survives). But if you add a fresh service,
-the DSN changes — see step 5.
+`pg_stat_monitor`, `pg_stat_statements`, leaving only `plpgsql`). If you do add a fresh service the
+DSN changes, so see step 5.
 
 Which guard catches what: **`ON_ERROR_STOP=1` catches SQL errors** (psql is the last stage, so its
 status is the pipeline's), **`pipefail` catches a `pg_dump` failure**. You need both.
 *Pass:* `grep -c '^ERROR'` is 0 **and** step 4's fidelity checks match. Exit 0 alone proves nothing.
-
 **4. Verify the data.**
 
 ```bash
@@ -125,7 +178,24 @@ Run the same four against the source and diff. **"Extensions present" cannot fai
 fresh insta postgres already ships `pgcrypto`, `uuid-ossp`, `pgaudit`, `vector`, `pg_stat_monitor`
 and `pg_stat_statements`, so the dump's `CREATE EXTENSION IF NOT EXISTS` is a no-op. Compare the
 **sets** source-vs-target instead of asserting presence.
-*Pass:* counts and latest rows match; sequences at or above the source's; extension sets reconciled.
+
+**After a major-version downgrade, add the schema checks**, because that is where a downgrade loses
+things quietly:
+
+```bash
+psql "$T" -c "select conname, contype, convalidated from pg_constraint
+              where connamespace = 'public'::regnamespace and contype <> 'n' order by conname"
+psql "$T" -c "select indexname, indexdef from pg_indexes
+              where schemaname = 'public' order by indexname"
+psql "$T" -c "select oid::regprocedure from pg_proc where pronamespace = 'public'::regnamespace"
+```
+
+Exclude `contype = 'n'` rows, since PG18 records `NOT NULL` there and pg16 does not. Diff `indexdef`
+as text, and confirm `convalidated` is true rather than merely that the constraint exists.
+Then **call every function the third query lists, once.** Their bodies were never parsed during the
+restore, so this is the only thing that catches PG17/18 SQL inside them.
+*Pass:* counts and latest rows match; sequences at or above the source's; extension sets reconciled;
+after a downgrade, constraints validated, `indexdef`s equal, and every function callable.
 
 **5. Bring the app onto the target — and `start` does NOT re-resolve env.**
 
@@ -212,8 +282,8 @@ Bind every credential the app needs; nothing is auto-injected into compute.
 ## Per-source deltas
 
 **Render.** Buildpack-built, so almost never a Dockerfile — `insta compute connect-repo` is the
-shortest path. **Its Postgres is 18, so step 3 is a downgrade** into insta's pg16; read that step
-before promising anyone a data migration. `render.yaml`, if present, is the fastest inventory you
+shortest path. **Its Postgres is 18, so step 3 is a downgrade** into insta's pg16. Step 3 has the tested
+procedure for that; it is one filtered line, not a blocker. `render.yaml`, if present, is the fastest inventory you
 will get: it declares every service and database and how the environment is wired, and two of its
 forms need care — `generateValue` values were invented by Render and have **no source of truth
 outside it**, and `sync: false` values were typed by a human and were **never in the file at all**.
@@ -253,12 +323,27 @@ Also: `railway link` writes the global `~/.railway/config.json` keyed by cwd, no
 so "cd somewhere safe" is not isolation. Railway's Postgres template is **18**, so it is a downgrade
 too. Its volumes carry the same caveat as any: creating a target volume does not copy contents.
 
-**Fly.** Same spine. `fly.toml`'s `[processes]` block maps onto compute services, and Fly apps may
-carry volumes with the same caveat.
+**Fly.** The easiest source of the four, and the only one that is not a Postgres downgrade: Fly
+Managed Postgres runs **16**, the same major as insta's, so step 3 needs no filter. A Fly app also
+already has a `Dockerfile` and a `fly.toml`, so `insta deploy . --port <n>` works directly and
+`internal_port` in `fly.toml` is the `--port` value. `[processes]` maps onto compute services, and
+volumes carry the same caveat as any. **The one real obstacle is secrets:** `fly secrets list`
+returns names and digests only, because "the actual value of the secret is only available to the
+application", so there is no export. Read them off a running machine with
+`fly ssh console -C env -a <app>` before you stop it, or have the user re-enter them.
 
 > **Verified as of 2026-09-09**, by executing this runbook against a throwaway project with a seeded
 > Postgres: the cutover ordering, the guard behaviour in step 3, `start` not re-resolving env, the
 > `secrets set` stdin/argument asymmetry, and the refusal messages quoted above. **Not verified:** any
 > end-to-end migration from a real source platform, the portless-worker path, and object-storage or
-> volume data movement. The pg18→pg16 downgrade routes in step 3 are constrained by upstream pg_dump
-> behaviour, not by a procedure anyone here has completed.
+> volume data movement.
+>
+> **The pg18→pg16 downgrade in step 3 is verified end to end** against a seeded PG 18.6 source and a
+> real InstaCloud PG 16.15 target: restore exited 0 with empty stderr, and a catalog and data diff
+> came back identical apart from the extensions insta preinstalls. Sequences kept their positions
+> (identity sequence at 900001, next insert returned 900002), 2 FKs and 4 CHECKs were `convalidated`
+> and actually rejected violating rows, all 8 index `indexdef`s were byte equal including a GIN on
+> jsonb and a partial index, view and trigger definitions were md5 equal, and
+> `COPY … WITH (FORMAT binary)` from both sides was `cmp` identical at 123,405 bytes, covering
+> microsecond `timestamptz` and nested `jsonb`. The blocker table and the two silent failures in
+> step 3 were each reproduced individually.
