@@ -57,21 +57,47 @@ it.
 
 **3. Copy into a CLEAN target.**
 
-**Match your `pg_dump` major to the TARGET server first.** `insta services list` prints the postgres
-major for exactly this reason: a newer client emits statements an older server rejects. A pg18
-`pg_dump` against insta's pg16 fails on the first `SET`:
-`ERROR: unrecognized configuration parameter "transaction_timeout"`. What matters is the **client's**
-version, not the source server's.
+**Check BOTH majors before anything else, because they decide whether this step is possible at
+all.** `pg_dump` reads a server **older than or equal to** itself and never a newer one, and its
+output restores into a server **at or above** its own major. So the client has to satisfy
+
+```
+source_major  ≤  client_major  ≤  target_major
+```
+
+and when the **source is newer than the target there is no client that satisfies it.** That is a
+major-version *downgrade*, which pg_dump does not support in either direction: a pg16 client refuses
+to read a pg18 server outright, and a pg18 client emits statements pg16 rejects, starting at the
+first `SET` — `ERROR: unrecognized configuration parameter "transaction_timeout"` (a PG17+ setting).
 
 ```bash
-insta services list                       # read the postgres major, e.g. postgres/db [pg16]
-PG=16                                     # match it
+insta services list                       # target major, e.g. postgres/db [pg16] — NOT selectable
+# source major:  psql "$SOURCE_URL" -c 'show server_version'
+```
 
+**Upgrade or equal (source ≤ target)** — the normal case. Pin a client at the target's major:
+
+```bash
 set -o pipefail
-docker run --rm postgres:$PG pg_dump --no-owner --no-privileges "$SOURCE_URL" \
+docker run --rm postgres:16 pg_dump --no-owner --no-privileges "$SOURCE_URL" \
   | psql -v ON_ERROR_STOP=1 "$(insta db url --group db)" 2>&1 | tee restore.log
 grep -c '^ERROR' restore.log              # must print 0
 ```
+
+**Downgrade (source > target)** — today this is Render (pg18) and Railway (pg18) into InstaCloud's
+pg16, i.e. **both documented sources**. There is no supported one-liner. Two constrained routes,
+neither blessed:
+
+- Dump plain-format with a client at the **source** major, then strip the statements pg16 rejects
+  before restoring. Filterable offenders are prelude noise (PG17+ `SET`s, `\restrict` /
+  `\unrestrict` psql meta-commands); a **semantic** incompatibility is not filterable and ends the
+  route.
+- `pg_dump --data-only` with the schema built against pg16 by hand.
+
+Either way **verify fidelity, not exit status** (step 4): a restore that exits `0` having lost a
+sequence position, a constraint or an index is a failed migration. Escalate rather than improvise if
+neither route preserves the schema — the real fix is a selectable target major, and it is not in the
+CLI today.
 
 A full dump restored into a populated database is **not** incremental sync — it collides on existing
 objects and primary keys, so the target must be empty. **Prefer adding a fresh postgres service**
@@ -83,7 +109,7 @@ the DSN changes — see step 5.
 
 Which guard catches what: **`ON_ERROR_STOP=1` catches SQL errors** (psql is the last stage, so its
 status is the pipeline's), **`pipefail` catches a `pg_dump` failure**. You need both.
-*Pass:* `grep -c '^ERROR'` is 0. Exit 0 alone proves nothing.
+*Pass:* `grep -c '^ERROR'` is 0 **and** step 4's fidelity checks match. Exit 0 alone proves nothing.
 
 **4. Verify the data.**
 
@@ -158,24 +184,24 @@ data loss. "If verification fails, just point back at the source" is wrong once 
 
 ## Command mapping
 
-| Need | Heroku | InstaCloud |
-|---|---|---|
-| dump all env | `heroku config -s` | `insta secrets --print` |
-| set one env | `heroku config:set K=V` | `insta secrets set K` (value on stdin) |
-| DB connection string | `heroku config:get DATABASE_URL` | `insta db url` |
-| psql session | `heroku pg:psql` | `insta db connect` |
-| one-off task | `heroku run <cmd>` | `insta compute exec [service] -- <cmd>` (argv, no shell) |
-| stop traffic | `heroku maintenance:on` | `insta compute stop [service]` |
-| scale | `heroku ps:scale web=2` | `insta services scale compute <name> 2` |
-| custom domain | `heroku domains:add` | `insta compute set-domain` |
-| logs | `heroku logs -t` | `insta logs compute` (target is required) |
+| Need | Heroku | Render | InstaCloud |
+|---|---|---|---|
+| dump all env | `heroku config -s` | dashboard, or read `render.yaml` | `insta secrets --print` |
+| set one env | `heroku config:set K=V` | dashboard | `insta secrets set K` (value on stdin) |
+| DB connection string | `heroku config:get DATABASE_URL` | dashboard only — `render postgres get` does NOT expose it | `insta db url` |
+| psql session | `heroku pg:psql` | `render psql <id> --command "…" -o json --confirm` (only non-interactive form) | `insta db connect` |
+| one-off task | `heroku run <cmd>` | `render jobs create` | `insta compute exec [service] -- <cmd>` (argv, no shell) |
+| stop traffic | `heroku maintenance:on` | no switch — scale to zero or suspend, per service | `insta compute stop [service]` |
+| scale | `heroku ps:scale web=2` | dashboard only — no CLI command | `insta services scale compute <name> 2` |
+| custom domain | `heroku domains:add` | dashboard only — no CLI command | `insta compute set-domain <host> --group <svc>` |
+| logs | `heroku logs -t` | `render logs` | `insta logs compute` (target is required) |
 
 ## Addon → service
 
 | Source | Provision | Bound as |
 |---|---|---|
 | Heroku / Railway Postgres | `insta services add postgres <n>` | `DATABASE_URL` |
-| Heroku / Railway Redis | `insta services add redis <n>` | `REDIS_URL` |
+| Heroku / Railway Redis, **Render Key Value** (`render kv`) | `insta services add redis <n>` | `REDIS_URL` |
 | JawsDB, PlanetScale | `insta services add mysql <n>` | `MYSQL_URL` |
 | MongoDB Atlas | `insta services add mongodb <n>` | `MONGODB_URL` |
 | S3 bucket, Railway bucket | `insta services add storage <n>` | `AWS_*`, `BUCKET_NAME` |
@@ -185,22 +211,54 @@ Bind every credential the app needs; nothing is auto-injected into compute.
 
 ## Per-source deltas
 
+**Render.** Buildpack-built, so almost never a Dockerfile — `insta compute connect-repo` is the
+shortest path. **Its Postgres is 18, so step 3 is a downgrade** into insta's pg16; read that step
+before promising anyone a data migration. `render.yaml`, if present, is the fastest inventory you
+will get: it declares every service and database and how the environment is wired, and two of its
+forms need care — `generateValue` values were invented by Render and have **no source of truth
+outside it**, and `sync: false` values were typed by a human and were **never in the file at all**.
+
+CLI shape, measured rather than read off the docs: `render services -o json --confirm` returns
+services **and** databases together; `render psql <id> --command "…" -o json --confirm` is the
+**only** non-interactive query path; `render postgres get` does **not** expose a connection string
+(dashboard only); `render jobs create` covers one-offs and `render logs` / `render restart` /
+`render deploys` exist, but **scaling and custom domains have no CLI command at all**. There is no
+maintenance-mode switch, so step 2 means scaling each service to zero or suspending it by hand.
+Render Key Value (`render kv`) is the Redis equivalent. A **free** Postgres carries an `expiresAt`
+30 days out, is capped at 1 GB, defaults its `ipAllowList` to `0.0.0.0/0`, and has **no backups and
+no logical exports** — the connection string is the only way data leaves.
+
 **Heroku.** The richest export surface: `config -s` yields `KEY=value` lines, `pg:backups` and
 `maintenance:on` are single commands, and the `Procfile`'s `web:` / `worker:` map straight onto
 compute services. No volumes. `app.json`, if present, declares the addons — read it to enumerate
 what to provision.
 
 **Railway.** Closest model (services + variables + IaC), so the concept mapping is nearly 1:1 — but
-the export is more manual. Variables may be **reference variables** (`${{Postgres.DATABASE_URL}}`)
-that must be resolved to literals first; services are enumerated one at a time rather than from a
-single file; and there is **no maintenance-mode equivalent**, so step 2 means stopping each service
-by hand. Railway apps may carry a **volume** — creating a target volume does **not** copy its
-contents, so either copy and verify it explicitly or state that it is out of scope.
+the export has three traps, all measured:
 
-**Fly / Render.** Same spine. Render declares services and databases in `render.yaml` — read it to
-enumerate. Fly's `fly.toml` `[processes]` block maps onto compute services, and Fly apps may carry
-volumes with the same caveat as Railway.
+- **`railway variable list` always RESOLVES references**, in both the table and `--json`, and no flag
+  shows the raw form. You will never see a `${{…}}`. The hazard runs the other way: a resolved
+  `DATABASE_URL` is a literal pointing at **Railway's** Postgres, so copying it verbatim leaves the
+  migrated app talking to the database you are leaving. Skip every connection string you are
+  binding. The raw form exists only via `railway api` with `variables(… unrendered: true)`, and that
+  query returns a **smaller** key set — the `RAILWAY_*` built-ins exist only at render time and are
+  not stored variables worth migrating.
+- **`railway status` reflects only LIVE deployments.** A stopped Postgres whose volume still holds
+  data is indistinguishable from one never provisioned (`latestDeployment: null` for both). Check
+  `railway deployment list` per service before concluding a database is unused.
+- **A volume cannot be read while its service is stopped** — no offline browse; `render`-style file
+  listing refuses with "has no active deployment", so auditing one means starting the service.
 
-> Unverified as of 2026-09-08: no migration has been run end to end against this runbook. The
-> portless-worker path, object-storage and volume data movement, and Railway's lack of a maintenance
-> mode are all read from code and docs, not from a completed migration.
+Also: `railway link` writes the global `~/.railway/config.json` keyed by cwd, not a local directory,
+so "cd somewhere safe" is not isolation. Railway's Postgres template is **18**, so it is a downgrade
+too. Its volumes carry the same caveat as any: creating a target volume does not copy contents.
+
+**Fly.** Same spine. `fly.toml`'s `[processes]` block maps onto compute services, and Fly apps may
+carry volumes with the same caveat.
+
+> **Verified as of 2026-09-09**, by executing this runbook against a throwaway project with a seeded
+> Postgres: the cutover ordering, the guard behaviour in step 3, `start` not re-resolving env, the
+> `secrets set` stdin/argument asymmetry, and the refusal messages quoted above. **Not verified:** any
+> end-to-end migration from a real source platform, the portless-worker path, and object-storage or
+> volume data movement. The pg18→pg16 downgrade routes in step 3 are constrained by upstream pg_dump
+> behaviour, not by a procedure anyone here has completed.
