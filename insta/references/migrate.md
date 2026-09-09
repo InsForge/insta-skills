@@ -103,6 +103,36 @@ insta --agent deploy --image <registry/img> --port <n>          # works on every
 # or: insta --agent compute connect-repo <owner/repo> app       # attaches to THIS service; nixpacks if no Dockerfile
 ```
 
+**Two things about `connect-repo` that will cost you a migration if you do not know them.**
+
+**It overwrites the port you set at `services add`.** `cli/src/commands/github.ts` builds the body as
+`port: o.port !== undefined ? parsePort(o.port) : c.port`, where `c` is the *server-side detection
+candidate* — the service's own configured port is never consulted. Measured: `0 → 8000` and
+`8080 → 8000`, and it happens even when the build then fails. **So repeat the port on the connect:**
+
+```bash
+insta --agent compute connect-repo <owner/repo> <svc> --public --port <n>
+```
+
+It is invisible otherwise: `services add` does not echo the port, `connect-repo` does not, and
+`services list` only shows it inside the `running <image>:<port>` fragment, so an imageless service
+shows none. Only `--json` reveals it. Benign for an app that reads `$PORT`; a **silent, guaranteed
+dead service** for anything with a hardcoded 3000, 5000 or 4000.
+
+**It is asynchronous, and a failed build looks like a pending one.** It exits 0 printing
+`building main now` while the build may already be dead. Confirm before you curl:
+
+```bash
+insta --agent compute repo <svc> --json      # → source.last_build.{status,error,image_ref}
+```
+
+Nothing else tells you. Plain `insta --agent compute repo` **hides** the build result;
+`compute status` sits at `desired=running live=none` indefinitely; and both `logs compute <svc>` and
+`logs compute <svc> --deploy` answer `note: operations unavailable (insta-compute 404: not found)`
+whenever no machine has ever existed — which reads as a broken logging subsystem rather than a
+failed build. If `last_build.status` is `failed`, there is **no host to curl**, so step 1's pass
+condition is unreachable rather than failing; report the `error` string and stop.
+
 **Which lane, and why it is `connect-repo` for a migration.** Two independent constraints rule out
 the directory deploy, and only one of them is about the compute plane:
 
@@ -136,6 +166,14 @@ components instead — `PGHOST` / `PGUSER` / `PGPASSWORD` / `PGDATABASE` / `PGPO
 Railway injects by default and what `railwayapp-templates/django` reads via `os.environ[...]` —
 **point the app at the single DSN rather than trying to reproduce the five.** In Django that is
 `dj-database-url`; most stacks accept a DSN directly. Do this as part of the migration, not after.
+
+**A near neighbour: an app that parses the DSN and drops what it does not recognise.** Insta's
+postgres DSN ends `?sslmode=require`. An app that does
+`const { host, port, database, user, password } = parse(env('DATABASE_URL'))` and passes only those
+five to its driver discards the SSL requirement, and the connection is then refused with
+**`FATAL: instadb: database "instadb" does not exist`** (measured, same DSN, only `sslmode`
+differing) — an error that names the wrong cause entirely and sends people hunting a provisioning
+fault. Grep for a DSN parser, not just for `PG*` names.
 
 The reason it must be a code change is that the alternative fails *silently*. `insta --agent secrets bind`
 validates the env name only against `^[A-Z][A-Z0-9_]{0,63}$`, and for a postgres source
@@ -178,9 +216,12 @@ insta --agent compute stop <service>
 ```
 
 This deploy exists to prove the image builds, the binding resolves and the app serves. It must not
-leave a **second writable system standing.** `insta --agent services add` assigns a compute service
-a default domain, so from the moment this deploy gives it a machine the app is reachable on the
-public internet, and any write it takes — a session row, a signup, an analytics insert — lands in
+leave a **second writable system standing.** A compute service has **no domain until its first
+successful deploy** — measured on three separate services: `services add` leaves `domain: null`,
+and the host is minted with the image, which is what the pre-flight above already says. (Both
+`services add --help` and an earlier version of this note claimed `add` assigns one; they are
+wrong.) But domain and machine arrive together, so the moment this deploy succeeds the app **is**
+reachable on the public internet, and any write it takes — a session row, a signup, an analytics insert — lands in
 the target database *before* the restore. That breaks the cutover twice over: step 3 requires an
 empty target and would now collide, and step 2's promise that only one side accepts writes is no
 longer true. `compute stop` takes it offline and, per the CLI, "traffic will NOT wake it until
@@ -425,9 +466,15 @@ and set it into the name the app actually reads — its own name, never ours; th
 
 ```bash
 insta --agent services list                                   # the compute row's host column
-insta --agent secrets set RENDER_EXTERNAL_HOSTNAME <that host>   # or DJANGO_ALLOWED_HOSTS, or whatever it reads
+insta --agent secrets set RENDER_EXTERNAL_HOSTNAME <that host>   # ONLY if that is the name AND shape it reads
 insta --agent compute restart <service>                       # env is materialized at deploy time
 ```
+
+**Match the name *and the shape*.** The pre-flight told you which variable; it also has to tell you
+whether the app wants a bare host or a full URL. Render's own Django example reads
+`RENDER_EXTERNAL_HOSTNAME` (a host); its own Strapi example reads **`RENDER_EXTERNAL_URL`** and
+feeds it to `server.url`, which needs `https://…`. Setting the wrong one of those two is silent:
+the app reads nothing and keeps its default.
 
 Set only what the app needs. Faking a *second* variable to make it believe it is still on the old
 platform is how the Render case turns a 400 into a 500 (the ladder in the Render section). Treat
@@ -442,7 +489,9 @@ way to read its host, since the value you just set is named after a platform it 
 insta --agent compute exec <service> -- sh -c 'printenv DATABASE_URL | sed -E "s#^([a-z+]+://)[^@]*@#\\1***@#"'
 ```
 
-`insta --agent secrets bindings` reports what *should* be bound and will show the new source even while the
+`insta --agent secrets bindings --target compute/<service>` (the flag is **required**; bare it fails
+with `--target <compute/name> is required`, and note it is `--target` here but `--to` on `bind`)
+reports what *should* be bound and will show the new source even while the
 machine holds the old DSN — a false pass at the exact moment the rollback boundary is crossed. Then
 confirm the app reads **and writes** the new database.
 
@@ -515,21 +564,24 @@ command you already have:
 | In `render.yaml` | Do this |
 |---|---|
 | `databases: [{name: X}]` | `insta --agent services add postgres X` |
-| `services: [{type: web, name: X}]` | `insta --agent services add compute X --port <n>` |
-| `type: worker` | a second compute service; give it a port and leave always-on (step 6 of this file's worker notes) |
+| `services: [{type: web, name: X}]` | `insta --agent services add compute X --port <n>`. `--port` is optional and stores **`null`**, not `8080`; the 8080 default is applied at *deploy* time. Pass it anyway, and pass it again on `connect-repo` (see above) |
+| `type: worker` | a second compute service. **Portless is prebuilt-image-only**, so read the worker notes below before promising it: `services add compute X --port 0` and `connect-repo … --port 0` are both **rejected** (`port must be an integer between 1 and 65535, got: 0`), while `insta --agent deploy --image <ref> --port 0` is **accepted** and is the only path. A repo whose worker identity *is* its `startCommand`, with no Dockerfile, has **no route** on insta-compute: `connect-repo` cannot set commands ("Build and start commands come from detection and cannot be set") and `deploy <dir>` is refused on this plane. Say so rather than improvising |
 | `type: cron` | no equivalent: `pg_cron`, or a scheduler inside an always-on compute service |
 | `type: pserv` (private service) | a compute service, but **flag it to the user**: `insta --agent services add` assigns a default domain to every compute service, so a Render private service stops being unreachable from the internet |
-| `runtime: python` / `node` / `ruby` / `go` (any non-`image`) | `insta --agent compute connect-repo <owner/repo> X` — nixpacks does what the buildpack did |
+| `runtime: python` / `node` / `ruby` / `go` (any non-`image`; older blueprints spell it `env:`) | `insta --agent compute connect-repo <owner/repo> X` — nixpacks does what the buildpack did |
 | `buildCommand:` | **nixpacks does not run the script**, but do not assume nothing in it happens: its Django provider runs `manage.py migrate` itself at start (measured — a full `admin, auth, contenttypes, sessions` migrate ran against the bound insta pg16 with no instruction from us). The **asset** half is what it skips, so read the script and re-home anything else: `collectstatic` or an `npm run build` needs a `Dockerfile` or nixpacks' own detected build step. A migration you want under your control rather than run at every boot belongs in `insta --agent compute exec` |
 | `startCommand:` | nixpacks picks its own, which is often not this one. If the app needs a specific server invocation (`gunicorn mysite.asgi:application -k uvicorn.workers.UvicornWorker`, a `-w` count, an ASGI vs WSGI entrypoint), that is a `Dockerfile` `CMD`, so this row can turn the whole service into the Dockerfile lane |
 | `runtime: image`, `image.url` | `insta --agent deploy --image <url> --port <n>` instead; do NOT reach for connect-repo |
 | `envVars: [{fromDatabase: {...}}]` | `insta --agent secrets bind DATABASE_URL postgres/X --to compute/Y` |
-| `envVars: [{fromService: {...}}]` | usually a plain secret: only credential-minting services can be bound |
+| `envVars: [{fromService: {...}}]` | **bind it if the target is a credential-minting service** — `redis`, `mysql` and `mongodb` all are, so `insta --agent secrets bind <NAME> redis/X --to compute/Y --source-name REDIS_URL` is right and copying the DSN as a plain secret is the anti-pattern this file warns about elsewhere. Only a `fromService` pointing at another **compute** service has to become a plain secret |
 | `envVars: [{value: V}]` | `insta --agent secrets set KEY V` |
 | `envVars: [{generateValue: true}]` | Render invented it. **Carry the existing value over, do not regenerate** — for a Django `SECRET_KEY` a new one logs out every session, and for an app's own signing keys it invalidates issued tokens |
 | `envVars: [{sync: false}]` | never in the file. Read it from the API below, or ask the user |
+| `maxmemoryPolicy:` on a redis | no insta knob. Render's own queue examples set `noeviction` deliberately, so tell the user their queue's eviction behaviour is not reproducible here |
+| `ipAllowList: []` on a datastore | no insta knob, and the default runs the **other way**: a provisioned redis came back `public=true`. A Render datastore restricted to internal connections becomes publicly addressable here, so flag it like the `pserv` row |
 | `envVarGroups:` | **not returned by the env-vars API** (see below); resolve these from the dashboard |
-| `disk: {mountPath, sizeGB}` | `--volume <gi>` on `insta --agent services add`, or `insta --agent compute volume X --size <gi>` later. It mounts at `/data` and only on the deploy *after* it is attached, so a different `mountPath` means a code or config change |
+| `disk: {mountPath, sizeGB}` | `--volume <gi>` on `insta --agent services add`, or `insta --agent compute volume X --size <gi>` later. **The disk appears when the machine is next created, so `insta --agent compute restart X` is enough — no rebuild.** Measured twice on a running volumeless service: attach, restart only, and `/data` is mounted; the platform labels that event `wake`, not `deploy`, which is the mechanism. A volume attached *before* the first deploy is present on that first deploy. (Both this file and the CLI's own string said "the next deploy"; on a nixpacks service that difference is a 10-second restart versus a full rebuild.) **Do not mirror Render's `sizeGB`:** attach at the free 10Gi cap, because growing is paid-plan-only even from 1Gi to 2Gi and shrinking is impossible, so a literal small size is a one-way door |
+| `disk` holding **user uploads** | the volume is usually the wrong tool: prefer `insta --agent services add storage <n>` plus an S3 upload provider (see the addon table), which is the only option that survives scale-out. If you keep the volume, the path fix must be **in the image** — a `Dockerfile` symlink to `/data` — because a symlink made with `compute exec` is wiped on the next restart (measured). Check whether the framework can be pointed at the mount instead (Strapi: `server.dirs.public`), and note a fresh volume contains only `lost+found`, so a framework that requires its upload directory to pre-exist will crashloop until you create it |
 | `healthCheckPath` | not a knob here; insta health-checks the port |
 | `numInstances` | `insta --agent services scale compute X <n>` (1 to 10, same region, paid plans) |
 | `plan:` | `insta --agent compute limits` / `insta --agent db limits` |
@@ -592,9 +644,14 @@ So the useful expectation is not "grep for the platform variable" but **"assume 
 its own new hostname, and find out how it learns one."** Sometimes that is a variable you can set,
 often it is a literal you have to edit, and occasionally (Railway) there is nothing to do.
 
-**And there is nothing on this side for it to read.** The only variable the platform injects into a
-compute service is `PORT` (`provisioning/deploy.ts`: `const env = { PORT: String(port), ...envBundle }`)
-— everything else in the machine's env came from a secret or a binding you created. There is no
+**And there is nothing on this side for it to read.** `PORT` is the only variable the *control
+plane* adds (`provisioning/deploy.ts`: `const env = { PORT: String(port), ...envBundle }`), and
+everything else you set came from a secret or a binding. The machine env is not that short, though:
+the orchestrator adds its own, measured on a live machine — `KUBERNETES_SERVICE_HOST`,
+`KUBERNETES_PORT_443_TCP*`, `INTERNAL_DNS_*`, and per sibling service
+`INSTA_SVC_<hex>_SERVICE_HOST` / `_SERVICE_PORT`. So there **is** in-cluster discovery for siblings,
+and an app grepping its env for platform markers will see `KUBERNETES_*`. What none of them carry is
+the service's **own public domain**, which is the point here. There is no
 insta equivalent of `RENDER_EXTERNAL_HOSTNAME`, `RAILWAY_PUBLIC_DOMAIN` or `FLY_APP_NAME`, so an app
 cannot discover its own public domain here. **Read the domain off `insta --agent services list` and set it
 explicitly** into whatever name the app reads. Do not wait for the app to work it out.
@@ -673,13 +730,13 @@ file, so "cd somewhere safe" is not isolation.
 | a service built from a Dockerfile | same, `connect-repo` builds the Dockerfile when there is one |
 | a service deployed from an image | `insta --agent deploy --image <url> --port <n>` |
 | the Postgres service | `insta --agent services add postgres X` |
-| Redis / MySQL / MongoDB services | `insta --agent services add redis\|mysql\|mongodb X` |
+| Redis / MySQL / MongoDB services | `insta --agent services add redis\|mysql\|mongodb X`. **`--source-name` is mandatory** when you bind one, and it fails closed: `sourceName must be one of REDIS_URL, REDIS_HOST, REDIS_PORT, REDIS_USERNAME, REDIS_PASSWORD`. That is the guard postgres lacks, which is why the `PGHOST` footgun has no redis equivalent. Also: insta's redis DSN is **`rediss://`** (TLS), where Render's is plain `redis://` — celery/kombu rejects a `rediss://` broker without `?ssl_cert_reqs=`, so a verbatim bind is not always sufficient |
 | `deploy.startCommand` running migrations | do NOT carry it over as a startup gate; run migrations with `insta --agent compute exec` (see SKILL.md) |
 | `${{Postgres.DATABASE_URL}}` and friends | `insta --agent secrets bind DATABASE_URL postgres/X --to compute/Y` |
 | an app reading `PGHOST` / `PGUSER` / `PGPASSWORD` / `PGDATABASE` / `PGPORT` | a code change to read `DATABASE_URL`, per step 1 above. Railway injects these by default, so expect it |
 | `RAILWAY_*` built-ins, `PORT` | skip: render-time only, and the platform supplies `PORT` here |
 | any other variable | `insta --agent secrets set KEY` |
-| a volume | `--volume <gi>` on `insta --agent services add`, or `insta --agent compute volume X --size <gi>`; mounts at `/data` on the **next** deploy, and download the source contents while its service still runs |
+| a volume | `--volume <gi>` on `insta --agent services add`, or `insta --agent compute volume X --size <gi>`; it mounts at `/data` when the machine is next created, so a `restart` is enough (see the Render `disk:` row), and download the source contents while its service still runs |
 | `numReplicas` | `insta --agent services scale compute X <n>` (1 to 10, same region, paid plans) |
 | a cron service | no equivalent: `pg_cron`, or a scheduler inside an always-on compute service |
 | multi-region replicas | not available; one region per service, chosen with `--region` at add time |
