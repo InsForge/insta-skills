@@ -103,6 +103,28 @@ insta --agent deploy --image <registry/img> --port <n>          # works on every
 # or: insta --agent compute connect-repo <owner/repo> app       # attaches to THIS service; nixpacks if no Dockerfile
 ```
 
+**Which lane, and why it is `connect-repo` for a migration.** Two independent constraints rule out
+the directory deploy, and only one of them is about the compute plane:
+
+1. `insta deploy <dir>` is refused outright on **insta-compute** (`source builds are not supported
+   on the insta-compute provider yet`). Plane-specific.
+2. `insta deploy <dir>` **requires a Dockerfile in the directory, on every plane, Fly included.**
+   `cli/src/commands/deploy.ts` states it: "A directory deploy builds the Dockerfile IN the
+   directory — there is no no-Dockerfile lane here. The nixpacks (no-Dockerfile) lane is real but
+   server-side: it runs on the build gateway for GitHub-connected repos."
+
+**The second is the binding one here**, and it does not depend on the plane. An app arriving from
+Render, Railway or Heroku was built by a buildpack and has no Dockerfile, so the directory deploy
+fails on Fly too, and the CLI's own error tells you to connect the repo. So `connect-repo` is the
+migration default because of the app's shape, not as a workaround for a missing feature — it would
+still be the right lane if insta-compute gained source builds tomorrow.
+
+Use `insta --agent deploy --image` instead when the user already publishes an image, and
+`insta --agent deploy <dir>` only when the repo genuinely carries a Dockerfile **and** the target is
+Fly-backed. When the archive lane lands (`InsForge/insta-compute#241`) the directory deploy will
+select nixpacks for a Dockerfile-less directory and become preferable, because it needs no GitHub
+App — which is today the one step in this runbook only a human can perform, for a private repo.
+
 Without the `services add compute` line the bind fails with `service not found on branch:
 compute/app`. A deploy materializes env into the machine config, so the binding takes effect with
 it. **`insta --agent compute restart` is refused while a service has no image** ("this service has no
