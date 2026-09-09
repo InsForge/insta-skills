@@ -20,8 +20,12 @@ once the target accepts writes, "roll back to the source" silently discards them
 insta project create <name>        # or: insta project link <project-id>
 ```
 
-Note this rewrites the **global** default link in `~/.insta/config.json`, not only the local
-`.insta/project.json` it reports — any directory without its own link now points here.
+**It rewrites `~/.insta/project.json`, the GLOBAL default link**, so any directory without its own
+link now points here. Capture that file's contents before you run this, and restore them after.
+Do not trust the command's own output: it prints `linked ./.insta/project.json`, which reads as
+local, but **no local `.insta/` directory is created at all** (verified on prod, 2026-09-09). Note
+this is a *different* file from `~/.insta/config.json`, which holds the env and session and carries
+no project link.
 
 **1. Provision, bind, deploy.**
 
@@ -324,6 +328,8 @@ command you already have:
 | `type: cron` | no equivalent: `pg_cron`, or a scheduler inside an always-on compute service |
 | `type: pserv` (private service) | a compute service, but **flag it to the user**: `insta services add` assigns a default domain to every compute service, so a Render private service stops being unreachable from the internet |
 | `runtime: python` / `node` / `ruby` / `go` (any non-`image`) | `insta compute connect-repo <owner/repo> X` — nixpacks does what the buildpack did |
+| `buildCommand:` | **nixpacks will NOT run it.** Read the script it names and re-home every step: a `collectstatic`, an asset build or an `npm run build` belongs in a `Dockerfile` or in nixpacks' own detected build, and a `migrate` belongs in `insta compute exec` after the deploy, never in the image build. Skipping this row is how a build succeeds and the app still fails |
+| `startCommand:` | nixpacks picks its own, which is often not this one. If the app needs a specific server invocation (`gunicorn mysite.asgi:application -k uvicorn.workers.UvicornWorker`, a `-w` count, an ASGI vs WSGI entrypoint), that is a `Dockerfile` `CMD`, so this row can turn the whole service into the Dockerfile lane |
 | `runtime: image`, `image.url` | `insta deploy --image <url> --port <n>` instead; do NOT reach for connect-repo |
 | `envVars: [{fromDatabase: {...}}]` | `insta secrets bind DATABASE_URL postgres/X --to compute/Y` |
 | `envVars: [{fromService: {...}}]` | usually a plain secret: only credential-minting services can be bound |
@@ -337,6 +343,40 @@ command you already have:
 | `plan:` | `insta compute limits` / `insta db limits` |
 | `region:` | `--region` on `insta services add` (values from `insta regions`) |
 | `autoDeploy: false` | nothing to do: `connect-repo` deploys on push, and `builds.auto_deploy` is not implemented on the compute plane anyway |
+
+**Check for platform-detection env vars before you deploy anything.** Apps routinely branch on
+whether the *source platform's own* variable is present, and every one of those branches flips when
+the app lands here. The idiom to grep for is a bare presence test on the platform name:
+
+```bash
+grep -rnE "RENDER|DYNO|HEROKU|RAILWAY|FLY_APP_NAME|FLY_ALLOC_ID|VERCEL" --include='*.py' \
+  --include='*.js' --include='*.ts' --include='*.rb' --include='*.go' .
+```
+
+`render-examples/django` is the worked example, and it fails **both** ways:
+
+```python
+DEBUG = 'RENDER' not in os.environ            # no RENDER here, so DEBUG becomes True
+ALLOWED_HOSTS = []
+RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+if RENDER_EXTERNAL_HOSTNAME: ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+```
+
+`ALLOWED_HOSTS` stays empty, so Django answers **HTTP 400 `DisallowedHost` to every request** on the
+insta domain. **The platform will report the service as healthy while this happens**, because the
+check is TCP on the port (`adapters/fly.ts`: `config.checks = { port: { type: 'tcp' } }`), and the
+app is listening — it just refuses every request. So `insta compute status` looking fine proves
+nothing; curl the URL. Setting the two variables to fake the source platform trades that for a **500**,
+because `DEBUG=False` switches on a manifest static-files backend whose manifest is built by the
+`buildCommand` nixpacks never ran. **Set the app's own host/debug settings explicitly instead of
+impersonating the old platform** — here, `ALLOWED_HOSTS` to the insta domain and `DEBUG` off, with
+the static build re-homed per the `buildCommand` row. Heroku (`DYNO`), Railway (`RAILWAY_*`), Fly
+(`FLY_APP_NAME`) and Vercel (`VERCEL`) all have the same idiom, so expect this on every source.
+
+A quieter cousin: a config helper with a **fallback default** hides a failed binding instead of
+reporting it. `dj_database_url.config(default='postgresql://…@localhost:5432/…')` means a missing
+`DATABASE_URL` degrades to localhost, so a bind you forgot looks like a network fault. Confirm the
+value on the machine (step 5) rather than inferring it from the app's behaviour.
 
 **Env var values come from the API, not the CLI.** The Render CLI has **no** env-var subcommand at
 all (`deploys`, `jobs`, `keyvalues`, `logs`, `postgres`, `restart`, `services`, `workflows`,
