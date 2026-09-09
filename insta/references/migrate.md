@@ -23,7 +23,7 @@ Each step has a condition that must hold before the next one runs. **The orderin
 once the target accepts writes, "roll back to the source" silently discards them.
 
 **Secret hygiene, for every step below.** A migration moves credentials by definition, so the
-default is: **never let a value reach stdout.** Pipe it (`… | insta secrets set NAME`), or set it
+default is: **never let a value reach stdout.** Pipe it (`… | insta --agent secrets set NAME`), or set it
 from a file, or have the user paste it into a prompt. When you must *check* a value, compare a
 redacted form or a hash, not the value — the pattern used in step 5. Never write a resolved
 credential to a file you leave behind, and if an intermediate file is unavoidable, delete it in the
@@ -32,7 +32,7 @@ same step that created it. Print **names**, never values.
 **0. Link a project.** The cutover assumes one exists.
 
 ```bash
-insta project create <name>        # or: insta project link <project-id>
+insta --agent project create <name>        # or: insta --agent project link <project-id>
 ```
 
 **The link is per directory, but it is resolved by walking UP**, git-style: `findProjectRoot`
@@ -71,17 +71,17 @@ step 5.** If the answer was "a literal I must edit", make that edit NOW, before 
 image is already right.
 
 ```bash
-insta services add postgres db                          # + redis/storage/… as the source needs
-insta services add compute app --port <n>               # REQUIRED: the bind below targets it
-insta secrets bind DATABASE_URL postgres/db --to compute/app
-insta deploy --image <registry/img> --port <n>          # works on every compute plane
-# or: insta deploy <dir> --port <n>                     # Dockerfile required, Fly-backed compute only
-# or: insta compute connect-repo <owner/repo> app       # attaches to THIS service; nixpacks if no Dockerfile
+insta --agent services add postgres db                          # + redis/storage/… as the source needs
+insta --agent services add compute app --port <n>               # REQUIRED: the bind below targets it
+insta --agent secrets bind DATABASE_URL postgres/db --to compute/app
+insta --agent deploy --image <registry/img> --port <n>          # works on every compute plane
+# or: insta --agent deploy <dir> --port <n>                     # Dockerfile required, Fly-backed compute only
+# or: insta --agent compute connect-repo <owner/repo> app       # attaches to THIS service; nixpacks if no Dockerfile
 ```
 
 Without the `services add compute` line the bind fails with `service not found on branch:
 compute/app`. A deploy materializes env into the machine config, so the binding takes effect with
-it. **`insta compute restart` is refused while a service has no image** ("this service has no
+it. **`insta --agent compute restart` is refused while a service has no image** ("this service has no
 machines yet — deploy an image first, then retry"), so a first migration is bind → **deploy**, never
 bind → restart.
 
@@ -91,30 +91,30 @@ Railway injects by default and what `railwayapp-templates/django` reads via `os.
 **point the app at the single DSN rather than trying to reproduce the five.** In Django that is
 `dj-database-url`; most stacks accept a DSN directly. Do this as part of the migration, not after.
 
-The reason it must be a code change is that the alternative fails *silently*. `insta secrets bind`
+The reason it must be a code change is that the alternative fails *silently*. `insta --agent secrets bind`
 validates the env name only against `^[A-Z][A-Z0-9_]{0,63}$`, and for a postgres source
 `--source-name` defaults to the only allowed key, so
 
 ```bash
-insta secrets bind PGHOST postgres/db --to compute/app    # accepted, and WRONG
+insta --agent secrets bind PGHOST postgres/db --to compute/app    # accepted, and WRONG
 ```
 
 is accepted and sets `PGHOST` to the **whole connection string**. Nothing complains at bind time;
 the app fails later trying to resolve a hostname that is actually a URL. (From
 `insta-platform/src/provisioning/userSecrets.ts:78,88` and `secretNames.ts:5`, read at `a79b067`;
-not executed.) Splitting the DSN into five plain secrets with `insta secrets set` does work, but
+not executed.) Splitting the DSN into five plain secrets with `insta --agent secrets set` does work, but
 they are then static copies that no longer follow a rotation, which is the whole point of a
 binding. Note this asymmetry is postgres-only: `redis`, `mysql` and `mongodb` each expose their
 components alongside the URL, so binding `REDIS_HOST` or `MYSQL_USERNAME` is fine.
 
 Deploy an image that carries a **psql client** if you intend to verify from inside the app in step 5
 — `nginx:alpine` and friends cannot.
-*Pass:* **curl the URL and read the status** — not `insta compute status`, which reports a service
+*Pass:* **curl the URL and read the status** — not `insta --agent compute status`, which reports a service
 healthy whenever the port accepts TCP, so an app that refuses every request looks identical to one
 that works.
 
 ```bash
-insta services list                    # read the compute row's host column
+insta --agent services list                    # read the compute row's host column
 curl -s -o /dev/null -w '%{http_code}\n' "https://<that host>"
 ```
 
@@ -131,11 +131,11 @@ Source: maintenance/read-only **and** stop its workers and cron. A read-only web
 worker is still writing. Heroku: `heroku maintenance:on` plus `heroku ps:scale worker=0`.
 Railway / Fly / Render: no single maintenance switch — stop or scale each service by hand.
 
-Target: `insta compute stop <service>` for what step 1 deployed, plus any worker.
+Target: `insta --agent compute stop <service>` for what step 1 deployed, plus any worker.
 **Do not infer target quiescence from "nothing has been rebound yet"** — after step 1 the target
 app is live and can write.
 
-**`stop` is a traffic barrier, not an execution barrier.** `insta compute exec` succeeds on a
+**`stop` is a traffic barrier, not an execution barrier.** `insta --agent compute exec` succeeds on a
 stopped service and leaves it **live** (`status` then reads `desired=stopped live=running`), so any
 `exec` — including a verification query in step 4 — re-animates the machine. Re-`stop` after using
 it.
@@ -147,7 +147,7 @@ it.
 blockers.
 
 ```bash
-insta services list                       # target major, e.g. postgres/db [pg16], NOT selectable
+insta --agent services list                       # target major, e.g. postgres/db [pg16], NOT selectable
 psql "$SOURCE_URL" -c 'show server_version'
 ```
 
@@ -164,7 +164,7 @@ filter.
 ```bash
 set -o pipefail
 pg_dump --no-owner --no-privileges "$SOURCE_URL" \
-  | psql -v ON_ERROR_STOP=1 "$(insta db url --group db)" 2>&1 | tee restore.log
+  | psql -v ON_ERROR_STOP=1 "$(insta --agent db url --group db)" 2>&1 | tee restore.log
 grep -c '^ERROR' restore.log              # must print 0
 ```
 
@@ -176,7 +176,7 @@ workaround. `pg_dump` from 18 emits exactly one statement pg16 does not know.
 set -o pipefail
 pg_dump --format=plain --no-owner --no-privileges "$SOURCE_URL" \
   | awk '!d && /^SET transaction_timeout/ {d=1; next} /^\\restrict / {next} /^\\unrestrict / {next} {print}' \
-  | psql -v ON_ERROR_STOP=1 "$(insta db url --group db)" 2>&1 | tee restore.log
+  | psql -v ON_ERROR_STOP=1 "$(insta --agent db url --group db)" 2>&1 | tee restore.log
 grep -c '^ERROR' restore.log              # must print 0
 ```
 
@@ -196,7 +196,7 @@ Custom-format archives have no filter hook, so route them through text:
 ```bash
 pg_restore --no-owner --no-privileges -f - source.dump \
   | awk '!d && /^SET transaction_timeout/ {d=1; next} /^\\restrict / {next} /^\\unrestrict / {next} {print}' \
-  | psql -v ON_ERROR_STOP=1 "$(insta db url --group db)"
+  | psql -v ON_ERROR_STOP=1 "$(insta --agent db url --group db)"
 ```
 
 The streamed form above needs no `--exit-on-error`: `pg_restore -f -` only writes SQL, and the
@@ -274,7 +274,7 @@ where c.relkind = 'r'
 order by 1;
 SQL
 
-T="$(insta db url --group db)"             # scriptable; `insta db connect` is interactive
+T="$(insta --agent db url --group db)"             # scriptable; `insta --agent db connect` is interactive
 psql "$T"          -At -F, -f /tmp/counts.sql | sort > /tmp/target.csv
 psql "$SOURCE_URL" -At -F, -f /tmp/counts.sql | sort > /tmp/source.csv
 diff /tmp/source.csv /tmp/target.csv && echo "row counts identical"
@@ -322,15 +322,15 @@ after a downgrade, constraints validated, `indexdef`s equal, and every function 
 
 ```bash
 # binding unchanged (you restored into the same postgres service):
-insta compute start <service>
+insta --agent compute start <service>
 
 # binding CHANGED (you restored into a fresh postgres service):
-insta compute start <service> && insta compute restart <service>
+insta --agent compute start <service> && insta --agent compute restart <service>
 ```
 
-`insta compute start` is a machine-lifecycle operation only. On a stopped-and-rebound service it
+`insta --agent compute start` is a machine-lifecycle operation only. On a stopped-and-rebound service it
 brings the machine back **with the env it was deployed with**, so the app keeps writing to the
-pre-migration database — while `insta secrets bindings` already reports the new source. `restart`
+pre-migration database — while `insta --agent secrets bindings` already reports the new source. `restart`
 does re-resolve (`restarted … — env re-resolved from the current secrets`) but is **refused on a
 stopped service**, so the changed-binding case is `start` *then* `restart`.
 
@@ -339,9 +339,9 @@ and set it into the name the app actually reads — its own name, never ours; th
 `INSTA_*` exists:
 
 ```bash
-insta services list                                   # the compute row's host column
-insta secrets set RENDER_EXTERNAL_HOSTNAME <that host>   # or DJANGO_ALLOWED_HOSTS, or whatever it reads
-insta compute restart <service>                       # env is materialized at deploy time
+insta --agent services list                                   # the compute row's host column
+insta --agent secrets set RENDER_EXTERNAL_HOSTNAME <that host>   # or DJANGO_ALLOWED_HOSTS, or whatever it reads
+insta --agent compute restart <service>                       # env is materialized at deploy time
 ```
 
 Set only what the app needs. Faking a *second* variable to make it believe it is still on the old
@@ -354,18 +354,18 @@ way to read its host, since the value you just set is named after a platform it 
 ```bash
 # Compare the HOST only. Never print a DSN: it carries the password, and it lands in the
 # terminal and in your transcript.
-insta compute exec <service> -- sh -c 'printenv DATABASE_URL | sed -E "s#^([a-z+]+://)[^@]*@#\\1***@#"'
+insta --agent compute exec <service> -- sh -c 'printenv DATABASE_URL | sed -E "s#^([a-z+]+://)[^@]*@#\\1***@#"'
 ```
 
-`insta secrets bindings` reports what *should* be bound and will show the new source even while the
+`insta --agent secrets bindings` reports what *should* be bound and will show the new source even while the
 machine holds the old DSN — a false pass at the exact moment the rollback boundary is crossed. Then
 confirm the app reads **and writes** the new database.
 
 **6. Cut traffic.**
 
 ```bash
-insta compute set-domain <host> --group <service>       # host is positional; service is --group
-insta compute check-domain <host> --group <service>
+insta --agent compute set-domain <host> --group <service>       # host is positional; service is --group
+insta --agent compute check-domain <host> --group <service>
 ```
 
 `set-domain <service> <host>` fails with `invalid domain`. It returns the DNS records for you to
@@ -381,45 +381,45 @@ data loss. "If verification fails, just point back at the source" is wrong once 
 
 | | |
 |---|---|
-| **A binding is not live until a deploy** | Env is materialized into machine config at deploy time. `insta secrets bind` changes the rules only; the running machine keeps its old env until `insta deploy` (first time) or `insta compute restart` (already running). Until then **the app still writes to the old database.** |
+| **A binding is not live until a deploy** | Env is materialized into machine config at deploy time. `insta --agent secrets bind` changes the rules only; the running machine keeps its old env until `insta --agent deploy` (first time) or `insta --agent compute restart` (already running). Until then **the app still writes to the old database.** |
 | **`--port` must equal the listen port** | `PORT` is injected as the routed port. An app reading `$PORT` is fine; a hardcoded port boots "successfully" and refuses every request. Source deploys default from the Dockerfile's last `EXPOSE` — read the line the CLI prints and confirm it. |
-| **Three routes get code in on every plane** | `insta deploy --image`; `insta compute connect-repo <owner/repo> <service>` (attaches to an EXISTING service and builds its Dockerfile, or detects the runtime with nixpacks when there is none — `--public` needs no GitHub App, `--root-dir` handles a monorepo); or the console's repo binding, which CREATES a service rather than attaching. `insta deploy <dir>` needs a Dockerfile **and** Fly-backed compute — on insta-compute the platform refuses it outright, Dockerfile or not, with `source builds are not supported on the insta-compute provider yet`. Do not plan a migration around it unless you have confirmed the target's plane. |
+| **Three routes get code in on every plane** | `insta --agent deploy --image`; `insta --agent compute connect-repo <owner/repo> <service>` (attaches to an EXISTING service and builds its Dockerfile, or detects the runtime with nixpacks when there is none — `--public` needs no GitHub App, `--root-dir` handles a monorepo); or the console's repo binding, which CREATES a service rather than attaching. `insta --agent deploy <dir>` needs a Dockerfile **and** Fly-backed compute — on insta-compute the platform refuses it outright, Dockerfile or not, with `source builds are not supported on the insta-compute provider yet`. Do not plan a migration around it unless you have confirmed the target's plane. |
 | **Postgres scales to zero** | Keep the pool's `idleTimeoutMillis` under the suspend window, or the first request after a wake fails on a dead pooled connection. |
-| **No bulk env import** | `insta secrets set <name>` takes one variable per call (value as an argument or on stdin). Loop over the source's export, and drop the platform's own vars — `HEROKU_*`, `RAILWAY_*`, `DYNO`, `PORT`. |
-| **`insta secrets list` prints names only** | It cannot reveal a truncated or mis-escaped value. To compare values, use `insta secrets --print --json` — **not** bare `--print`, which double-quotes every value and does not escape embedded newlines, so a multi-line value breaks line-oriented parsing and every key then digests differently from the source export. |
-| **No app-level scheduler — but the DB has one** | There is no `insta schedule`. Two options. In-process (node-cron, APScheduler, whenever) inside a **web** service: keep it always-on, since a suspended service stops firing, and remember **replicas multiply every tick** (`insta services scale` allows 1–10, so two replicas run each job twice). Or **`pg_cron`**, which insta postgres ships (a `pg_cron launcher` worker is already running; `CREATE EXTENSION pg_cron`) — one schedule, no replica problem, but SQL-only. |
-| **Workers** | `port === 0` is the platform's own worker convention, but `insta services add --port 0` is rejected and `insta template deploy` refuses `type: worker`. **Until that path is verified end to end**, give the worker a port and let it listen — the machine check is **TCP, not HTTP**, so `require('net').createServer().listen(process.env.PORT)` is enough (no framework, no `/health`). Never `--no-always-on`: a suspended worker has no inbound traffic to wake it. |
+| **No bulk env import** | `insta --agent secrets set <name>` takes one variable per call (value as an argument or on stdin). Loop over the source's export, and drop the platform's own vars — `HEROKU_*`, `RAILWAY_*`, `DYNO`, `PORT`. |
+| **`insta --agent secrets list` prints names only** | It cannot reveal a truncated or mis-escaped value. To compare values, use `insta --agent secrets --print --json` — **not** bare `--print`, which double-quotes every value and does not escape embedded newlines, so a multi-line value breaks line-oriented parsing and every key then digests differently from the source export. |
+| **No app-level scheduler — but the DB has one** | There is no `insta schedule`. Two options. In-process (node-cron, APScheduler, whenever) inside a **web** service: keep it always-on, since a suspended service stops firing, and remember **replicas multiply every tick** (`insta --agent services scale` allows 1–10, so two replicas run each job twice). Or **`pg_cron`**, which insta postgres ships (a `pg_cron launcher` worker is already running; `CREATE EXTENSION pg_cron`) — one schedule, no replica problem, but SQL-only. |
+| **Workers** | `port === 0` is the platform's own worker convention, but `insta --agent services add --port 0` is rejected and `insta --agent template deploy` refuses `type: worker`. **Until that path is verified end to end**, give the worker a port and let it listen — the machine check is **TCP, not HTTP**, so `require('net').createServer().listen(process.env.PORT)` is enough (no framework, no `/health`). Never `--no-always-on`: a suspended worker has no inbound traffic to wake it. |
 
 ## Command mapping
 
 | Need | Heroku | Render | InstaCloud |
 |---|---|---|---|
-| dump all env | `heroku config -s` | dashboard, or read `render.yaml` | `insta secrets --print` |
-| set one env | `heroku config:set K=V` | dashboard | `insta secrets set K` (value on stdin) |
-| DB connection string | `heroku config:get DATABASE_URL` | dashboard only — `render postgres get` does NOT expose it | `insta db url` |
-| psql session | `heroku pg:psql` | `render psql <id> --command "…" -o json --confirm` (only non-interactive form) | `insta db connect` |
-| one-off task | `heroku run <cmd>` | `render jobs create` | `insta compute exec [service] -- <cmd>` (argv, no shell) |
-| stop traffic | `heroku maintenance:on` | no switch — scale to zero or suspend, per service | `insta compute stop [service]` |
-| scale | `heroku ps:scale web=2` | dashboard only — no CLI command | `insta services scale compute <name> 2` |
-| custom domain | `heroku domains:add` | dashboard only — no CLI command | `insta compute set-domain <host> --group <svc>` |
-| logs | `heroku logs -t` | `render logs` | `insta logs compute` (target is required) |
+| dump all env | `heroku config -s` | dashboard, or read `render.yaml` | `insta --agent secrets --print` |
+| set one env | `heroku config:set K=V` | dashboard | `insta --agent secrets set K` (value on stdin) |
+| DB connection string | `heroku config:get DATABASE_URL` | dashboard only — `render postgres get` does NOT expose it | `insta --agent db url` |
+| psql session | `heroku pg:psql` | `render psql <id> --command "…" -o json --confirm` (only non-interactive form) | `insta --agent db connect` |
+| one-off task | `heroku run <cmd>` | `render jobs create` | `insta --agent compute exec [service] -- <cmd>` (argv, no shell) |
+| stop traffic | `heroku maintenance:on` | no switch — scale to zero or suspend, per service | `insta --agent compute stop [service]` |
+| scale | `heroku ps:scale web=2` | dashboard only — no CLI command | `insta --agent services scale compute <name> 2` |
+| custom domain | `heroku domains:add` | dashboard only — no CLI command | `insta --agent compute set-domain <host> --group <svc>` |
+| logs | `heroku logs -t` | `render logs` | `insta --agent logs compute` (target is required) |
 
 ## Addon → service
 
 | Source | Provision | Bound as |
 |---|---|---|
-| Heroku / Railway Postgres | `insta services add postgres <n>` | `DATABASE_URL` |
-| Heroku / Railway Redis, **Render Key Value** (`render kv`) | `insta services add redis <n>` | `REDIS_URL` |
-| JawsDB, PlanetScale | `insta services add mysql <n>` | `MYSQL_URL` |
-| MongoDB Atlas | `insta services add mongodb <n>` | `MONGODB_URL` |
-| S3 bucket, Railway bucket | `insta services add storage <n>` | `AWS_*`, `BUCKET_NAME` |
+| Heroku / Railway Postgres | `insta --agent services add postgres <n>` | `DATABASE_URL` |
+| Heroku / Railway Redis, **Render Key Value** (`render kv`) | `insta --agent services add redis <n>` | `REDIS_URL` |
+| JawsDB, PlanetScale | `insta --agent services add mysql <n>` | `MYSQL_URL` |
+| MongoDB Atlas | `insta --agent services add mongodb <n>` | `MONGODB_URL` |
+| S3 bucket, Railway bucket | `insta --agent services add storage <n>` | `AWS_*`, `BUCKET_NAME` |
 | Heroku Scheduler, Railway cron | none — see the table above | |
 
 Bind every credential the app needs; nothing is auto-injected into compute.
 
 ## Per-source deltas
 
-**Render.** Buildpack-built, so almost never a Dockerfile — `insta compute connect-repo` is the
+**Render.** Buildpack-built, so almost never a Dockerfile — `insta --agent compute connect-repo` is the
 shortest path. **Its Postgres is 18, so step 3 is a downgrade** into insta's pg16. Step 3 has the tested
 procedure for that; it is one filtered line, not a blocker.
 
@@ -429,26 +429,26 @@ command you already have:
 
 | In `render.yaml` | Do this |
 |---|---|
-| `databases: [{name: X}]` | `insta services add postgres X` |
-| `services: [{type: web, name: X}]` | `insta services add compute X --port <n>` |
+| `databases: [{name: X}]` | `insta --agent services add postgres X` |
+| `services: [{type: web, name: X}]` | `insta --agent services add compute X --port <n>` |
 | `type: worker` | a second compute service; give it a port and leave always-on (step 6 of this file's worker notes) |
 | `type: cron` | no equivalent: `pg_cron`, or a scheduler inside an always-on compute service |
-| `type: pserv` (private service) | a compute service, but **flag it to the user**: `insta services add` assigns a default domain to every compute service, so a Render private service stops being unreachable from the internet |
-| `runtime: python` / `node` / `ruby` / `go` (any non-`image`) | `insta compute connect-repo <owner/repo> X` — nixpacks does what the buildpack did |
-| `buildCommand:` | **nixpacks does not run the script**, but do not assume nothing in it happens: its Django provider runs `manage.py migrate` itself at start (measured — a full `admin, auth, contenttypes, sessions` migrate ran against the bound insta pg16 with no instruction from us). The **asset** half is what it skips, so read the script and re-home anything else: `collectstatic` or an `npm run build` needs a `Dockerfile` or nixpacks' own detected build step. A migration you want under your control rather than run at every boot belongs in `insta compute exec` |
+| `type: pserv` (private service) | a compute service, but **flag it to the user**: `insta --agent services add` assigns a default domain to every compute service, so a Render private service stops being unreachable from the internet |
+| `runtime: python` / `node` / `ruby` / `go` (any non-`image`) | `insta --agent compute connect-repo <owner/repo> X` — nixpacks does what the buildpack did |
+| `buildCommand:` | **nixpacks does not run the script**, but do not assume nothing in it happens: its Django provider runs `manage.py migrate` itself at start (measured — a full `admin, auth, contenttypes, sessions` migrate ran against the bound insta pg16 with no instruction from us). The **asset** half is what it skips, so read the script and re-home anything else: `collectstatic` or an `npm run build` needs a `Dockerfile` or nixpacks' own detected build step. A migration you want under your control rather than run at every boot belongs in `insta --agent compute exec` |
 | `startCommand:` | nixpacks picks its own, which is often not this one. If the app needs a specific server invocation (`gunicorn mysite.asgi:application -k uvicorn.workers.UvicornWorker`, a `-w` count, an ASGI vs WSGI entrypoint), that is a `Dockerfile` `CMD`, so this row can turn the whole service into the Dockerfile lane |
-| `runtime: image`, `image.url` | `insta deploy --image <url> --port <n>` instead; do NOT reach for connect-repo |
-| `envVars: [{fromDatabase: {...}}]` | `insta secrets bind DATABASE_URL postgres/X --to compute/Y` |
+| `runtime: image`, `image.url` | `insta --agent deploy --image <url> --port <n>` instead; do NOT reach for connect-repo |
+| `envVars: [{fromDatabase: {...}}]` | `insta --agent secrets bind DATABASE_URL postgres/X --to compute/Y` |
 | `envVars: [{fromService: {...}}]` | usually a plain secret: only credential-minting services can be bound |
-| `envVars: [{value: V}]` | `insta secrets set KEY V` |
+| `envVars: [{value: V}]` | `insta --agent secrets set KEY V` |
 | `envVars: [{generateValue: true}]` | Render invented it. **Carry the existing value over, do not regenerate** — for a Django `SECRET_KEY` a new one logs out every session, and for an app's own signing keys it invalidates issued tokens |
 | `envVars: [{sync: false}]` | never in the file. Read it from the API below, or ask the user |
 | `envVarGroups:` | **not returned by the env-vars API** (see below); resolve these from the dashboard |
-| `disk: {mountPath, sizeGB}` | `--volume <gi>` on `insta services add`, or `insta compute volume X --size <gi>` later. It mounts at `/data` and only on the deploy *after* it is attached, so a different `mountPath` means a code or config change |
+| `disk: {mountPath, sizeGB}` | `--volume <gi>` on `insta --agent services add`, or `insta --agent compute volume X --size <gi>` later. It mounts at `/data` and only on the deploy *after* it is attached, so a different `mountPath` means a code or config change |
 | `healthCheckPath` | not a knob here; insta health-checks the port |
-| `numInstances` | `insta services scale compute X <n>` (1 to 10, same region, paid plans) |
-| `plan:` | `insta compute limits` / `insta db limits` |
-| `region:` | `--region` on `insta services add` (values from `insta regions`) |
+| `numInstances` | `insta --agent services scale compute X <n>` (1 to 10, same region, paid plans) |
+| `plan:` | `insta --agent compute limits` / `insta --agent db limits` |
+| `region:` | `--region` on `insta --agent services add` (values from `insta --agent regions`) |
 | `autoDeploy: false` | nothing to do, and the default runs the other way for a **public** repo: `connect-repo --public` prints `deploys are manual from here: pushes will not redeploy (public repo)`, so nothing auto-deploys until you ask. `builds.auto_deploy` is not implemented on the compute plane either |
 
 **Check for platform-detection env vars before you deploy anything.** Apps routinely branch on
@@ -472,7 +472,7 @@ if RENDER_EXTERNAL_HOSTNAME: ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 `ALLOWED_HOSTS` stays empty, so Django answers **HTTP 400 `DisallowedHost` to every request** on the
 insta domain. **The platform reports the service as healthy while this happens**, because the check
 is TCP on the port (`adapters/fly.ts`: `config.checks = { port: { type: 'tcp' } }`) and the app is
-listening — it just refuses every request. `insta compute status` looking fine proves nothing; curl
+listening — it just refuses every request. `insta --agent compute status` looking fine proves nothing; curl
 the URL.
 
 All three outcomes below were **measured end to end** on this repo (prod, insta-compute, 2026-09-09),
@@ -511,7 +511,7 @@ often it is a literal you have to edit, and occasionally (Railway) there is noth
 compute service is `PORT` (`provisioning/deploy.ts`: `const env = { PORT: String(port), ...envBundle }`)
 — everything else in the machine's env came from a secret or a binding you created. There is no
 insta equivalent of `RENDER_EXTERNAL_HOSTNAME`, `RAILWAY_PUBLIC_DOMAIN` or `FLY_APP_NAME`, so an app
-cannot discover its own public domain here. **Read the domain off `insta services list` and set it
+cannot discover its own public domain here. **Read the domain off `insta --agent services list` and set it
 explicitly** into whatever name the app reads. Do not wait for the app to work it out.
 
 Note this problem belongs to the *pair* of platforms, not to the target: an app leaving Fly for
@@ -584,18 +584,18 @@ file, so "cd somewhere safe" is not isolation.
 
 | On Railway | Do this |
 |---|---|
-| a service, `builder: RAILPACK` or `NIXPACKS` | `insta services add compute X --port <n>`, then `insta compute connect-repo <owner/repo> X` |
+| a service, `builder: RAILPACK` or `NIXPACKS` | `insta --agent services add compute X --port <n>`, then `insta --agent compute connect-repo <owner/repo> X` |
 | a service built from a Dockerfile | same, `connect-repo` builds the Dockerfile when there is one |
-| a service deployed from an image | `insta deploy --image <url> --port <n>` |
-| the Postgres service | `insta services add postgres X` |
-| Redis / MySQL / MongoDB services | `insta services add redis\|mysql\|mongodb X` |
-| `deploy.startCommand` running migrations | do NOT carry it over as a startup gate; run migrations with `insta compute exec` (see SKILL.md) |
-| `${{Postgres.DATABASE_URL}}` and friends | `insta secrets bind DATABASE_URL postgres/X --to compute/Y` |
+| a service deployed from an image | `insta --agent deploy --image <url> --port <n>` |
+| the Postgres service | `insta --agent services add postgres X` |
+| Redis / MySQL / MongoDB services | `insta --agent services add redis\|mysql\|mongodb X` |
+| `deploy.startCommand` running migrations | do NOT carry it over as a startup gate; run migrations with `insta --agent compute exec` (see SKILL.md) |
+| `${{Postgres.DATABASE_URL}}` and friends | `insta --agent secrets bind DATABASE_URL postgres/X --to compute/Y` |
 | an app reading `PGHOST` / `PGUSER` / `PGPASSWORD` / `PGDATABASE` / `PGPORT` | a code change to read `DATABASE_URL`, per step 1 above. Railway injects these by default, so expect it |
 | `RAILWAY_*` built-ins, `PORT` | skip: render-time only, and the platform supplies `PORT` here |
-| any other variable | `insta secrets set KEY` |
-| a volume | `--volume <gi>` on `insta services add`, or `insta compute volume X --size <gi>`; mounts at `/data` on the **next** deploy, and download the source contents while its service still runs |
-| `numReplicas` | `insta services scale compute X <n>` (1 to 10, same region, paid plans) |
+| any other variable | `insta --agent secrets set KEY` |
+| a volume | `--volume <gi>` on `insta --agent services add`, or `insta --agent compute volume X --size <gi>`; mounts at `/data` on the **next** deploy, and download the source contents while its service still runs |
+| `numReplicas` | `insta --agent services scale compute X <n>` (1 to 10, same region, paid plans) |
 | a cron service | no equivalent: `pg_cron`, or a scheduler inside an always-on compute service |
 | multi-region replicas | not available; one region per service, chosen with `--region` at add time |
 
@@ -604,7 +604,7 @@ as any: creating a target volume does not copy contents.
 
 **Fly.** The easiest source of the four, and the only one that is not a Postgres downgrade: Fly
 Managed Postgres runs **16**, the same major as insta's, so step 3 needs no filter. A Fly app also
-already has a `Dockerfile` and a `fly.toml`, so `insta deploy . --port <n>` works directly and
+already has a `Dockerfile` and a `fly.toml`, so `insta --agent deploy . --port <n>` works directly and
 `internal_port` in `fly.toml` is the `--port` value. `[processes]` maps onto compute services, and
 volumes carry the same caveat as any. **The one real obstacle is secrets:** `fly secrets list`
 returns names and digests only, because "the actual value of the secret is only available to the
@@ -614,10 +614,10 @@ the machine before you stop it — but **read one name at a time, never the whol
 reaches your output:
 
 ```bash
-fly ssh console -a <app> -C 'printenv <NAME>' | tr -d '\r\n' | insta secrets set <NAME>
+fly ssh console -a <app> -C 'printenv <NAME>' | tr -d '\r\n' | insta --agent secrets set <NAME>
 ```
 
-`insta secrets set` reads stdin, so nothing is displayed and nothing enters shell history. **Never
+`insta --agent secrets set` reads stdin, so nothing is displayed and nothing enters shell history. **Never
 `fly ssh console -C env`**: it dumps every credential the app holds into your transcript at once.
 And never run the `printenv` on its own to "check" a value first; that is the leak. If you cannot
 pipe, have the user re-enter the value instead.
