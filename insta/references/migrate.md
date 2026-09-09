@@ -3,9 +3,11 @@
 Move a running app (Heroku, Railway, Fly, Render) onto InstaCloud: provision, move env and data,
 cut over. The reader-facing walkthroughs are `docs.instacloud.com/migrate/render` and
 `/migrate/railway`, and they are deliberately thin: they hand the user a prompt and point at this
-runbook, so **this file is what actually gets followed.** Its numbered steps are the ones those
-pages list, so keep them in the same order. What lives here and not there: the ordering and the
-pass conditions that keep a cutover from silently losing writes.
+runbook, so **this file is what actually gets followed.** Those pages deliberately do NOT list these
+steps, so do not add detail there when it belongs here. The one thing they do promise the reader is
+that the source stops taking writes before the target starts, which is the rollback boundary below.
+Everything else lives here: the ordering and the pass conditions that keep a cutover from silently
+losing writes.
 
 ## The ordered cutover
 
