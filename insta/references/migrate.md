@@ -228,6 +228,31 @@ longer true. `compute stop` takes it offline and, per the CLI, "traffic will NOT
 `start`". Step 5 brings it back with `start` then `restart`, which is the sequence it already
 prescribes for a stopped service.
 
+**But the stop cannot prevent the write that matters most.** nixpacks bakes migrations into the
+start command: measured on a Django repo, the build record's `start_command` is
+`python manage.py migrate && gunicorn mysite.wsgi`. That runs at **container start** — before any
+request, therefore before the curl and before this stop. On a real cutover it left the target
+holding **13 tables and ~48 rows**. The stop prevents *traffic-driven* writes only.
+
+**Read the start command first; it is in the build record**, so this is knowable in advance:
+
+```bash
+insta --agent compute repo <svc> --json     # → source.start_command
+```
+
+If it migrates at boot, then **step 3's emptiness check will fail and re-adding the postgres service
+is the expected path, not an exception.** Prefer a fresh postgres service after this proving deploy
+over trying to clean the one it touched.
+
+**A deploy also defeats the stop.** Measured: after an explicit `compute stop`, an
+`insta --agent deploy --image …` brought the service live and answering **200** on its public URL
+while `compute status` still reported `desired=stopped  live=running`. The status is not a safety
+check. Do not redeploy anything during steps 3 and 4. (`compute exec` does the same, which this
+file already warns about.)
+
+**`compute stop` is accepted on a service with no machine** (`stop → desired=stopped (live: none)`),
+unlike `restart`, so it is safe to run even after a failed build.
+
 **2. Stop the writers — on BOTH sides.**
 
 Source: maintenance/read-only **and** stop its workers and cron. A read-only web tier with a live
@@ -358,8 +383,10 @@ A full dump restored into a populated database is not an incremental
 sync: it collides on existing objects and primary keys. **Prefer adding a fresh postgres service**
 over dropping the database. `DROP DATABASE` needs a DSN retargeted to `/postgres`, is blocked by
 insta's own `pg_cron` session until you `pg_terminate_backend` it, and the recreated database
-**loses the platform's preinstalled extensions** (`pgcrypto`, `uuid-ossp`, `pgaudit`, `vector`,
-`pg_stat_monitor`, `pg_stat_statements`, leaving only `plpgsql`). If you do add a fresh service the
+**loses the platform's preinstalled extensions** — read the set with
+`psql "$T" -c "select extname from pg_extension order by 1"` rather than assuming it; measured on a
+fresh staging pg16 it was `pg_stat_monitor`, `pg_stat_statements`, `pgaudit`, `plpgsql`, `vector`,
+and **not** `pgcrypto` or `uuid-ossp`, so an app wanting `gen_random_uuid()` must create it. If you do add a fresh service the
 DSN changes, so see step 5.
 
 Which guard catches what: **`ON_ERROR_STOP=1` catches SQL errors** (psql is the last stage, so its
@@ -393,6 +420,10 @@ psql "$SOURCE_URL" -At -F, -f /tmp/counts.sql | sort > /tmp/source.csv
 diff /tmp/source.csv /tmp/target.csv && echo "row counts identical"
 ```
 
+If you test the diff by deleting rows, pick **unreferenced** ones: a correctly restored foreign key
+refuses the delete (`update or delete on table "auth_user" violates foreign key constraint …`),
+which is itself evidence the restore worked.
+
 It enumerates from `pg_class`, not from a stats view, so a reset cannot hide a table from it either.
 Verified after `pg_stat_reset()`: exact counts for a 1,000-row table, a 7-row table, an **empty**
 table and a table in a non-`public` schema, with views excluded. An empty table is worth having in
@@ -408,8 +439,10 @@ psql "$T" -c "select max(id), max(created_at) from <append_only_table>"
 ```
 
 Run those against the source too and diff. **"Extensions present" cannot fail** on its own — a
-fresh insta postgres already ships `pgcrypto`, `uuid-ossp`, `pgaudit`, `vector`, `pg_stat_monitor`
-and `pg_stat_statements`, so the dump's `CREATE EXTENSION IF NOT EXISTS` is a no-op. Compare the
+fresh insta postgres already ships several, so the dump's `CREATE EXTENSION IF NOT EXISTS` is a
+no-op for those. **Read the set, do not assume it** — measured on staging pg16:
+`pg_stat_monitor`, `pg_stat_statements`, `pgaudit`, `plpgsql`, `vector`, with **no `pgcrypto` and no
+`uuid-ossp`**, despite an earlier version of this file listing both. Compare the
 **sets** source-vs-target instead of asserting presence.
 
 **After a major-version downgrade, add the schema checks**, because that is where a downgrade loses
@@ -422,10 +455,15 @@ psql "$T" -At -F'|' -c "select n.nspname||'.'||c.conname, c.contype, c.convalida
         and c.contype <> 'n' order by 1"
 psql "$T" -At -F'|' -c "select schemaname||'.'||indexname, indexdef from pg_indexes
       where schemaname not in ('pg_catalog','information_schema') order by 1"
-psql "$T" -At      -c "select format('%I.%I(%s)', n.nspname, p.proname,
-                                    pg_get_function_identity_arguments(p.oid))
+psql "$T" -At -F'|' -c "select format('%I.%I(%s)', n.nspname, p.proname,
+                                     pg_get_function_identity_arguments(p.oid)),
+             case when p.prorettype = 'trigger'::regtype then 'trigger' else 'callable' end
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-      where n.nspname not in ('pg_catalog','information_schema') order by 1"
+      where n.nspname not in ('pg_catalog','information_schema')
+        and not exists (select 1 from pg_depend d
+                        where d.objid = p.oid and d.classid = 'pg_proc'::regclass
+                          and d.deptype = 'e')
+      order by 1"
 ```
 
 **All three cover every non-system schema, not just `public`.** An app with its own schema can lose
@@ -438,8 +476,16 @@ being identical. Verified: identical output across a `set search_path` change, w
 
 Exclude `contype = 'n'` rows, since PG18 records `NOT NULL` there and pg16 does not. Diff `indexdef`
 as text, and confirm `convalidated` is true rather than merely that the constraint exists.
-Then **call every function the third query lists, once.** Their bodies were never parsed during the
-restore, so this is the only thing that catches PG17/18 SQL inside them.
+**The `pg_depend … deptype = 'e'` exclusion is not optional.** Extensions install their functions
+into `public`, so without it the target lists every extension's functions while the source lists
+none: measured **139 rows against 2** on a real insta postgres, a 137-line false-positive diff on
+*every* migration. A throwaway pg16 with only `pgcrypto` present already went from 2 rows to **38**.
+An agent facing that either escalates for nothing or learns to ignore the check.
+
+Then **call every function the third query lists, once** — their bodies were never parsed during the
+restore, so this is the only thing that catches PG17/18 SQL inside them. **Except those marked
+`trigger`:** calling one directly fails with `trigger functions can only be called as triggers`.
+Exercise those with DML against the table whose trigger owns them.
 *Pass:* the per-table count diff is **empty** (every table, exact, both sides); latest rows match;
 sequences at or above the source's; extension sets reconciled;
 after a downgrade, constraints validated, `indexdef`s equal, and every function callable.
