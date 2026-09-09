@@ -5,36 +5,36 @@ Ship code to a branch's compute — image or source — and verify it actually s
 ## Two modes (pick exactly one)
 
 ```bash
-insta deploy --image <registry/img> --port <n>    # prebuilt image — ALWAYS pass --port
-insta deploy <dir> --port <n>                     # source dir — REQUIRES a Dockerfile
+insta --agent deploy --image <registry/img> --port <n>    # prebuilt image — ALWAYS pass --port
+insta --agent deploy <dir> --port <n>                     # source dir — REQUIRES a Dockerfile
 # both: [--branch <b>] targets another branch · [--group <g>] picks a compute service by name
 ```
 
 Targets the **current branch's** sole compute service by default; the URL prints on success.
 
-Before source deploys, run `insta build <dir> --port <n>`. It is local/offline and catches the
+Before source deploys, run `insta --agent build <dir> --port <n>`. It is local/offline and catches the
 common failures before the remote build: missing Dockerfile/start command, wrong or undetected port,
 unexpected `.env.example` keys, and an oversized Docker context. Read the verdict literally: only
-`deployable` means `insta deploy <dir>` will build it — a dir with no Dockerfile that nixpacks
+`deployable` means `insta --agent deploy <dir>` will build it — a dir with no Dockerfile that nixpacks
 detects stops at `needs-attention` (⚠ Dockerfile check), because this path needs the dir's own
 Dockerfile (CLI ≥ 0.0.48). `--explain` shows the Dockerfile — yours, or the nixpacks one **for
 inspection only** (not standalone; do not save it as `Dockerfile`); use `--json` when an agent needs
 structured output.
 
-Never run a bare `insta deploy <dir>` and assume the port: without `--port` older CLIs default
+Never run a bare `insta --agent deploy <dir>` and assume the port: without `--port` older CLIs default
 to 8080 regardless of the Dockerfile (boots "fine", every request refused — see below). Newer
 CLIs default from the Dockerfile's `EXPOSE` and print what they picked — read that line and
 confirm it matches the server's listen port.
 
 ## How source mode builds (what actually happens)
 
-1. The dir must contain a `Dockerfile`. There is **no nixpacks/buildpack lane on this path** — the CLI exits 1 without one. Dockerfile-less options: add one from the templates below (run `insta build <dir>` first: it reports the detected install/start commands to base it on, and only a dir with its own Dockerfile verdicts `deployable`), use `--image`, or connect the repo on GitHub — that server-side lane builds Dockerfile-less repos with nixpacks. Do **not** save the nixpacks Dockerfile that `insta build --explain` prints as your `Dockerfile`: it `COPY`s `.nixpacks/` support files the dir does not have.
+1. The dir must contain a `Dockerfile`. There is **no nixpacks/buildpack lane on this path** — the CLI exits 1 without one. Dockerfile-less options: add one from the templates below (run `insta --agent build <dir>` first: it reports the detected install/start commands to base it on, and only a dir with its own Dockerfile verdicts `deployable`), use `--image`, or connect the repo to the service (`insta --agent compute connect-repo <owner/repo> [service]`) — that server-side lane builds Dockerfile-less repos with nixpacks. Do **not** save the nixpacks Dockerfile that `insta --agent build --explain` prints as your `Dockerfile`: it `COPY`s `.nixpacks/` support files the dir does not have.
 2. Needs the `fly` CLI locally (auto-installed via Homebrew on macOS) but **NO Fly account/login** —
    the platform mints a **short-lived, app-scoped deploy token** (this mint is govern-gated: it can
    return `approval_required` *before* any build runs).
 3. The build runs on **remote builders** (no local Docker); the image is pushed and **pinned by
    digest** (tags race the registry), then deployed like any image.
-4. insta-oss: source mode is not implemented yet — use `--image`.
+4. insta-oss: source mode builds the image with your local Docker — same command; `insta --agent compute connect-repo` is cloud-only there (501).
 
 ## `--port` — the #1 deploy mistake
 
@@ -48,35 +48,35 @@ clones keep the listen port and shift the **host** mapping +1000.
 Compute env is explicit. At deploy, the platform injects:
 
 - `PORT`
-- user-defined secrets visible to that compute service (`insta secrets set`, project/branch or
+- user-defined secrets visible to that compute service (`insta --agent secrets set`, project/branch or
   compute-scoped)
-- provider credentials you explicitly bound with `insta secrets bind`
+- provider credentials you explicitly bound with `insta --agent secrets bind`
 
 Provider-minted credentials are **not** injected just because the project has a postgres, redis,
 mysql, mongodb, or storage service. Bind each credential the app needs, then deploy/redeploy:
 
 ```bash
-insta secrets sources
-insta secrets bind DATABASE_URL postgres/db --to compute/app
-insta secrets bind REDIS_URL redis/cache --source-name REDIS_URL --to compute/app
-insta deploy . --group app --port 8080
+insta --agent secrets sources
+insta --agent secrets bind DATABASE_URL postgres/db --to compute/app
+insta --agent secrets bind REDIS_URL redis/cache --source-name REDIS_URL --to compute/app
+insta --agent deploy . --group app --port 8080
 ```
 
 If the source has a single credential (`postgres`), `--source-name` is optional. Sources with several
 credential names (`storage`, `redis`, `mysql`, `mongodb`) need `--source-name`. Production code reads
 `process.env`; **never bake `./.env` into the image** (it's local-dev/user-secrets only). Changing a
-secret or binding takes effect on the **next deploy**, or on **`insta compute restart`** (CLI ≥
+secret or binding takes effect on the **next deploy**, or on **`insta --agent compute restart`** (CLI ≥
 0.0.51) for a service already running — no hot reload in either case: the machine takes a new config
 and restarts on it, in place. Whether an *idle* machine is woken to do so depends on the compute
 provider; see [operate.md](operate.md) before treating a restart as proof the app came back.
 
-Provider credential **values** stay out of the general bundle (`insta secrets` / `insta run` carry
-only user-defined secrets). The one direct read is the postgres DSN — `insta db url` /
-`insta db connect` (gated `secrets.read`) — for psql, migrations, and tools outside compute; pick
-client tools of the server's Postgres major first (`pg_version` on `insta services list --json`; a row
+Provider credential **values** stay out of the general bundle (`insta --agent secrets` / `insta --agent run` carry
+only user-defined secrets). The one direct read is the postgres DSN — `insta --agent db url` /
+`insta --agent db connect` (gated `secrets.read`) — for psql, migrations, and tools outside compute; pick
+client tools of the server's Postgres major first (`pg_version` on `insta --agent services list --json`; a row
 without one falls back to the exact-version read in [operate.md](operate.md)).
 Everything else runs where the credentials are bound: the deployed app itself, or a one-shot
-`insta compute exec app -- <cmd>` (≤180s, no stdin) — migrations run either way (never as a
+`insta --agent compute exec app -- <cmd>` (≤180s, no stdin) — migrations run either way (never as a
 startup gate; see the gotchas below).
 
 ## Verify before reporting (non-negotiable)
@@ -87,7 +87,7 @@ The deploy command exiting ≠ the app serving. After every deploy:
 curl -s -o /dev/null -w '%{http_code}' <printed-url>   # poll ~every 3s, up to ~60s
 ```
 
-A scale-to-zero service (`--no-always-on` at create, or `insta compute always-on off`) cold-starts on the first request — allow a slow first hit; new compute services are born always-on (since 2026-09-07) and skip this. `200` (or the
+A scale-to-zero service (`--no-always-on` at create, or `insta --agent compute always-on off`) cold-starts on the first request — allow a slow first hit; new compute services are born always-on (since 2026-09-07) and skip this. `200` (or the
 app's expected status) → report deployed **with the URL**. Anything else → triage per
 [operate.md](operate.md); never claim success you didn't observe.
 
@@ -96,15 +96,15 @@ app's expected status) → report deployed **with the URL**. Anything else → t
 - **Never gate container startup on migrations.** `CMD migrate && server` + a hung migration =
   a "successful" deploy that serves nothing, with empty logs. Run migrations non-blocking:
   `timeout 30 <migrate> || echo skipped; <start-server>`.
-- **Cold start ≠ down.** A scale-to-zero compute service (`--no-always-on`, or switched off with `insta compute always-on off`) suspends when idle; the first request wakes it. New compute is born always-on and does not.
+- **Cold start ≠ down.** A scale-to-zero compute service (`--no-always-on`, or switched off with `insta --agent compute always-on off`) suspends when idle; the first request wakes it. New compute is born always-on and does not.
 - **Redeploy replaces.** Compute is stateless — anything written to the container filesystem is
   gone on the next deploy. State belongs in the branch's postgres/storage.
 
 ## Custom domains (bring your own)
 
 ```bash
-insta compute set-domain app.example.com [--branch --group]   # prints the DNS records to add
-insta compute check-domain app.example.com                    # status once DNS propagates
+insta --agent compute set-domain app.example.com [--branch --group]   # prints the DNS records to add
+insta --agent compute check-domain app.example.com                    # status once DNS propagates
 ```
 
 Cert + routing are handled for you; the DNS records live in **your** registrar (CNAME for a

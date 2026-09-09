@@ -16,13 +16,13 @@ else that reads a `skills/` directory.
 The `insta` CLI installs this skill for you:
 
 ```bash
-insta setup agent
+insta --agent setup agent
 ```
 
 That copies the skill user-globally for every coding agent on the machine and registers the
-InstaCloud MCP server. `insta project create` and `insta project link` additionally install
+InstaCloud MCP server. `insta --agent project create` and `insta --agent project link` additionally install
 the stack skills a project needs (Tigris, Better Auth) into the project
-itself, along with the `insta observe` credential-audit hook — see
+itself, along with the `insta --agent observe` credential-audit hook — see
 [governance.md](insta/references/governance.md).
 
 To install the skill on its own:
@@ -69,8 +69,8 @@ InstaCloud runs two separate deployments, and each gets its own branch of this r
 | `prod` | `InsForge/insta-skills` (`main`) |
 | `staging` | `InsForge/insta-skills#devel` |
 
-`insta setup agent` installs prod's skill text by default — bare `setup agent` always targets
-prod (CLI ≥ 0.0.38), switching a staging-leftover machine back. `insta setup agent --env staging`
+`insta --agent setup agent` installs prod's skill text by default — bare `setup agent` always targets
+prod (CLI ≥ 0.0.38), switching a staging-leftover machine back. `insta --agent setup agent --env staging`
 is the explicit staging setup; it installs the `#devel` skill text that describes the staging
 control plane.
 
@@ -87,6 +87,8 @@ worked.
 - **Include failure modes.** A skill earns its keep by teaching what goes wrong and how to
   recover.
 - **Keep examples runnable.** Agents execute the code blocks.
+- **Include `--agent` in every agent CLI invocation**, including npx examples. Bare human-admin
+  approval/configuration commands are relay-only exceptions, never instructions for the agent to run.
 
 A skill is a `SKILL.md` with YAML frontmatter:
 

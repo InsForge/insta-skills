@@ -1,7 +1,7 @@
 # Framework deploy recipes
 
 Copy the recipe for the app's framework **before writing a Dockerfile from scratch** — each one
-has the four first-deploy traps already solved, so `insta deploy .` works on the first try.
+has the four first-deploy traps already solved, so `insta --agent deploy .` works on the first try.
 
 ## The four traps (why first deploys fail)
 
@@ -13,7 +13,7 @@ Every recipe below encodes these. If you hand-write a Dockerfile, get all four r
    `server.listen(port, process.env.HOSTNAME || '0.0.0.0')`, and `0.0.0.0` binds **IPv4-only** —
    so set **`HOSTNAME=::`** (verified: binds dual-stack). `0.0.0.0` happens to work on Fly's
    IPv4-reachable proxy but fails on IPv6-only networks like Railway — `::` is safe on both.
-2. **`EXPOSE <port>` in the Dockerfile.** `insta deploy` derives `--port` from the last `EXPOSE`;
+2. **`EXPOSE <port>` in the Dockerfile.** `insta --agent deploy` derives `--port` from the last `EXPOSE`;
    without it the service wires to 8080 and refuses every request. Keep `EXPOSE` == the listen port.
 3. **`PORT` env == the exposed port.** Read `process.env.PORT` and default it to the same number you
    `EXPOSE`. (The platform injects `PORT`; a mismatch is the classic 502.)
@@ -21,7 +21,7 @@ Every recipe below encodes these. If you hand-write a Dockerfile, get all four r
    slim final image. Keeps images small and start fast.
 
 Credentials arrive via injected env only after they are visible to the compute service: user config
-from `insta secrets set`, plus provider credentials you explicitly bind with `insta secrets bind`
+from `insta --agent secrets set`, plus provider credentials you explicitly bind with `insta --agent secrets bind`
 (`DATABASE_URL`, `BUCKET_NAME`, the `AWS_*` S3 bundle, `REDIS_URL`, `MYSQL_URL`, `MONGODB_URL`, …).
 Never bake them into the image.
 
@@ -53,7 +53,7 @@ EXPOSE 3000
 CMD ["node", "server.js"]
 ```
 
-Then: `insta deploy .` (port auto-derives from `EXPOSE 3000`). Route handlers read `process.env`
+Then: `insta --agent deploy .` (port auto-derives from `EXPOSE 3000`). Route handlers read `process.env`
 for `DATABASE_URL` / the S3 bundle. Pool Postgres at module scope; set `idleTimeoutMillis` under
 the database's scale-to-zero suspend window so an idle-suspended DB doesn't leave a dead socket.
 
@@ -100,4 +100,4 @@ CMD ["sh","-c","uvicorn main:app --host :: --port ${PORT}"]
 
 `curl` the printed URL's health path until it's 200 (cold start takes a few seconds). A 404/502
 that never clears almost always means trap #1 (bound IPv4-only) or #3 (PORT≠EXPOSE) — check
-`insta logs compute`, which prints the platform's "instance refused connection" hint.
+`insta --agent logs compute`, which prints the platform's "instance refused connection" hint.

@@ -1,6 +1,6 @@
 # Storage buckets
 
-`insta services add storage <name>` gives the branch a **private, S3-compatible bucket**. There is
+`insta --agent services add storage <name>` gives the branch a **private, S3-compatible bucket**. There is
 no vendor SDK and no InstaCloud storage client — point any S3 library at the bound credentials and
 it works. This page is the part that isn't obvious: how bytes actually get in and out, and the
 handful of things that bite first.
@@ -21,11 +21,11 @@ They do **not** automatically appear in every compute service. Bind the names yo
 the target compute service, then deploy/redeploy:
 
 ```bash
-insta secrets bind BUCKET_NAME storage/files --source-name BUCKET_NAME --to compute/app
-insta secrets bind AWS_ACCESS_KEY_ID storage/files --source-name AWS_ACCESS_KEY_ID --to compute/app
-insta secrets bind AWS_SECRET_ACCESS_KEY storage/files --source-name AWS_SECRET_ACCESS_KEY --to compute/app
-insta secrets bind AWS_ENDPOINT_URL_S3 storage/files --source-name AWS_ENDPOINT_URL_S3 --to compute/app
-insta secrets bind AWS_REGION storage/files --source-name AWS_REGION --to compute/app
+insta --agent secrets bind BUCKET_NAME storage/files --source-name BUCKET_NAME --to compute/app
+insta --agent secrets bind AWS_ACCESS_KEY_ID storage/files --source-name AWS_ACCESS_KEY_ID --to compute/app
+insta --agent secrets bind AWS_SECRET_ACCESS_KEY storage/files --source-name AWS_SECRET_ACCESS_KEY --to compute/app
+insta --agent secrets bind AWS_ENDPOINT_URL_S3 storage/files --source-name AWS_ENDPOINT_URL_S3 --to compute/app
+insta --agent secrets bind AWS_REGION storage/files --source-name AWS_REGION --to compute/app
 ```
 
 Never bake these into an image; after binding, they arrive as runtime env on deploy.
@@ -74,13 +74,13 @@ rclone copy ./dist insta:$BUCKET_NAME/dist       # with the same key/secret/endp
 1. **Forgetting the endpoint.** An S3 client with credentials but no `endpoint` silently talks to
    real AWS and fails on a bucket that isn't yours. This is the single most common mistake.
 2. **Assuming a bucket is shared across branches — or assuming it never is.** Normally each branch
-   gets its **own** bucket (CoW-forked from the parent at `insta branch create`) with its **own**
+   gets its **own** bucket (CoW-forked from the parent at `insta --agent branch create`) with its **own**
    scoped key, so a leaked branch credential cannot reach production data. **The exception is a
    legacy project whose root bucket predates snapshots: it keeps one shared bucket, with no storage
-   isolation at all** — a branch writes straight into production's objects. `insta manifest` shows
+   isolation at all** — a branch writes straight into production's objects. `insta --agent manifest` shows
    what a branch really has, and it is the only way to know which case you are in. Either way, read
    `BUCKET_NAME` from env per branch rather than hardcoding a name you saw once.
-3. **Expecting a branch's files to be promoted.** They are not. `insta branch merge` creates missing
+3. **Expecting a branch's files to be promoted.** They are not. `insta --agent branch merge` creates missing
    services on the target **fresh and empty — no data is copied**, the same rule that applies to
    databases. Files uploaded while testing on a branch stay there; extract anything worth keeping
    before `branch delete`. See [branching.md](branching.md).
@@ -88,7 +88,7 @@ rclone copy ./dist insta:$BUCKET_NAME/dist       # with the same key/secret/endp
    object comes back as `application/octet-stream`, which makes a browser download it instead of
    showing it — so the console's preview, and any `<img src>` you point at a presigned URL, silently
    degrade. Always set it.
-5. **Expecting to undelete.** There is no object versioning and no recycle bin. `insta storage
+5. **Expecting to undelete.** There is no object versioning and no recycle bin. `insta --agent storage
    delete` and any S3 `DeleteObject` are permanent, and deleting a key that was never there still
    reports success — so success is not proof the file existed.
 6. **Expecting search.** S3 filters by **key prefix** only; there is no substring match, in the CLI,
@@ -101,7 +101,7 @@ Buckets are private by default: reads need the credentials or a presigned URL. F
 anonymous public-read with
 
 ```bash
-insta services set-access storage <name> public   # or private
+insta --agent services set-access storage <name> public   # or private
 ```
 
 Public is a whole-bucket switch, not per-object. When only *some* files should be reachable, keep the
@@ -122,7 +122,7 @@ export async function fileUrl(key) {
 }
 ```
 
-That is the same mechanism the console and `insta storage get` use, so a private bucket is not a
+That is the same mechanism the console and `insta --agent storage get` use, so a private bucket is not a
 limitation on serving files — only on serving them anonymously and forever.
 
 ## Managing a bucket without an S3 client
@@ -130,9 +130,9 @@ limitation on serving files — only on serving them anonymously and forever.
 The platform exposes the objects directly, so the CLI, the console and MCP can all reach them:
 
 ```bash
-insta storage list                      # keys, size, last modified (--prefix to filter, --cursor to page)
-insta storage get <key> -o ./file       # short-lived presigned URL; bytes come straight from the provider
-insta storage delete <key>              # immediate and irreversible, no prompt
+insta --agent storage list                      # keys, size, last modified (--prefix to filter, --cursor to page)
+insta --agent storage get <key> -o ./file       # short-lived presigned URL; bytes come straight from the provider
+insta --agent storage delete <key>              # immediate and irreversible, no prompt
 ```
 
 The console's storage service detail browses the same objects with preview, download, and single or
