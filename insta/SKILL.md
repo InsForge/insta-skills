@@ -242,6 +242,7 @@ insta --agent manifest --json                        # agent-legible env view: e
 insta --agent services list --json                   # what exists on this project
 insta --agent run -- <cmd>                           # run with the branch bundle injected (NOTHING on disk; --branch <b>)
 insta --agent run --service compute/app -- <cmd>     # one service's own env — needed when several define the same name
+insta --agent run --ignore-collisions -- <cmd>       # run anyway; every colliding name is REMOVED from the child env
 insta --agent secrets --print                        # the branch's secrets (--branch <b>, --service <compute/name>)
 insta --agent secrets sources --json                 # provider credential sources available to bind
 insta --agent secrets bind DATABASE_URL postgres/db --to compute/app
@@ -290,6 +291,11 @@ If a request spans two areas ("deploy and check it's healthy"), load both and an
   binding anything. What a **compute service** receives is separate: bind with
   `insta --agent secrets bind`, then deploy (or `insta --agent compute restart` an already-running
   service, CLI ≥ 0.0.51 — a binding change never reaches a live machine on its own).
+  **`run` REFUSES and exits 2 when several services define the same name** (CLI ≥ 0.0.65): nothing
+  is spawned, and the names plus both ways forward print to stderr. Do not retry it as a transient
+  failure — re-run with `--service <type>/<name>` for that service's env, or
+  `--ignore-collisions` to proceed with those names removed from the child environment. Exit 2 is
+  also the approval code, so read the stderr message to tell them apart.
 - When a file is genuinely needed, treat `./.env` (from `insta --agent secrets`; auto-gitignored in git
   repos) as the **only** file-based source for secrets — it holds your user secrets and the
   branch's primary provider credentials — never hardcode or print secret
