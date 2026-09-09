@@ -50,6 +50,7 @@ insta/
     ├── branching.md      branch environments and the data that comes with them
     ├── governance.md     approvals, policy, the credential audit
     ├── operate.md        status, triage and recovery
+    ├── migrate.md        moving an app in from Heroku/Railway/Fly/Render: the ordered cutover
     └── mcp.md            the remote insta-cloud MCP server
 ```
 

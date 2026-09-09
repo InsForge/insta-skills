@@ -9,10 +9,25 @@ that the source stops taking writes before the target starts, which is the rollb
 Everything else lives here: the ordering and the pass conditions that keep a cutover from silently
 losing writes.
 
+**Running as an agent.** Bare `insta` commands already engage agent mode inside Claude Code,
+Codex and Cursor — `detectAgent` keys off `CLAUDECODE`, `CODEX_THREAD_ID`/`CODEX_CI` and
+`CURSOR_AGENT` (`cli/src/agent.ts`), and the session is project-bound, so a mutation without one
+fails with `agent session missing, expired, or for another project/environment`. **If your harness
+sets none of those, pass `--agent`** (`cli/src/index.ts`: "run as an agent with a verified project
+session and project agent policy") so you get the same verified session and policy gate instead of
+running as the human. Do not drop agent mode to get past a governance refusal; get the approval.
+
 ## The ordered cutover
 
 Each step has a condition that must hold before the next one runs. **The ordering is the point:**
 once the target accepts writes, "roll back to the source" silently discards them.
+
+**Secret hygiene, for every step below.** A migration moves credentials by definition, so the
+default is: **never let a value reach stdout.** Pipe it (`… | insta secrets set NAME`), or set it
+from a file, or have the user paste it into a prompt. When you must *check* a value, compare a
+redacted form or a hash, not the value — the pattern used in step 5. Never write a resolved
+credential to a file you leave behind, and if an intermediate file is unavoidable, delete it in the
+same step that created it. Print **names**, never values.
 
 **0. Link a project.** The cutover assumes one exists.
 
@@ -152,7 +167,7 @@ workaround. `pg_dump` from 18 emits exactly one statement pg16 does not know.
 ```bash
 set -o pipefail
 pg_dump --format=plain --no-owner --no-privileges "$SOURCE_URL" \
-  | grep -v -E '^(SET transaction_timeout|\\restrict |\\unrestrict )' \
+  | awk '!d && /^SET transaction_timeout/ {d=1; next} /^\\restrict / {next} /^\\unrestrict / {next} {print}' \
   | psql -v ON_ERROR_STOP=1 "$(insta db url --group db)" 2>&1 | tee restore.log
 grep -c '^ERROR' restore.log              # must print 0
 ```
@@ -172,11 +187,13 @@ Custom-format archives have no filter hook, so route them through text:
 
 ```bash
 pg_restore --no-owner --no-privileges -f - source.dump \
-  | grep -v -E '^(SET transaction_timeout|\\restrict |\\unrestrict )' \
+  | awk '!d && /^SET transaction_timeout/ {d=1; next} /^\\restrict / {next} /^\\unrestrict / {next} {print}' \
   | psql -v ON_ERROR_STOP=1 "$(insta db url --group db)"
 ```
 
-**Never** use `pg_restore` without `--exit-on-error` as the procedure. It reaches full fidelity on a
+The streamed form above needs no `--exit-on-error`: `pg_restore -f -` only writes SQL, and the
+guard is `psql -v ON_ERROR_STOP=1` at the end of the pipe. **What you must never do is run
+`pg_restore` directly into the database without `--exit-on-error`.** It reaches full fidelity on a
 clean schema, but "ignore all errors" equally swallows every blocker below.
 
 **Hard blockers: PG17/18 constructs that cannot be filtered.** If any appears, the restore stops
@@ -294,7 +311,9 @@ way to read its host, since the value you just set is named after a platform it 
 *Pass:* **check the machine, not the intent.**
 
 ```bash
-insta compute exec <service> -- printenv DATABASE_URL    # must name the NEW postgres service
+# Compare the HOST only. Never print a DSN: it carries the password, and it lands in the
+# terminal and in your transcript.
+insta compute exec <service> -- sh -c 'printenv DATABASE_URL | sed -E "s#^([a-z+]+://)[^@]*@#\\1***@#"'
 ```
 
 `insta secrets bindings` reports what *should* be bound and will show the new source even while the
@@ -549,7 +568,10 @@ already has a `Dockerfile` and a `fly.toml`, so `insta deploy . --port <n>` work
 volumes carry the same caveat as any. **The one real obstacle is secrets:** `fly secrets list`
 returns names and digests only, because "the actual value of the secret is only available to the
 application", so there is no export. Read them off a running machine with
-`fly ssh console -C env -a <app>` before you stop it, or have the user re-enter them.
+the machine before you stop it — but **read one name at a time, never the whole env**:
+`fly ssh console -a <app> -C 'printenv <NAME>'` in a shell whose history you control, or better,
+have the user re-enter them. `fly ssh console -C env` dumps every credential the app holds into
+your transcript at once; do not use it.
 
 > **Verified as of 2026-09-09**, by executing this runbook against a throwaway project with a seeded
 > Postgres: the cutover ordering, the guard behaviour in step 3, `start` not re-resolving env, the
