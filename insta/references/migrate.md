@@ -400,6 +400,18 @@ So the useful expectation is not "grep for the platform variable" but **"assume 
 its own new hostname, and find out how it learns one."** Sometimes that is a variable you can set,
 often it is a literal you have to edit, and occasionally (Railway) there is nothing to do.
 
+**And there is nothing on this side for it to read.** The only variable the platform injects into a
+compute service is `PORT` (`provisioning/deploy.ts`: `const env = { PORT: String(port), ...envBundle }`)
+— everything else in the machine's env came from a secret or a binding you created. There is no
+insta equivalent of `RENDER_EXTERNAL_HOSTNAME`, `RAILWAY_PUBLIC_DOMAIN` or `FLY_APP_NAME`, so an app
+cannot discover its own public domain here. **Read the domain off `insta services list` and set it
+explicitly** into whatever name the app reads. Do not wait for the app to work it out.
+
+Note this problem belongs to the *pair* of platforms, not to the target: an app leaving Fly for
+Railway breaks the same way (`.fly.dev` is a literal in Fly's own example, and Railway serves it at
+`*.up.railway.app`), and Railway's own Fly and Render guides do not mention it either. Nobody
+documents this, so do not expect the source platform's migration docs to have warned the user.
+
 A quieter cousin: a config helper with a **fallback default** hides a failed binding instead of
 reporting it. `dj_database_url.config(default='postgresql://…@localhost:5432/…')` means a missing
 `DATABASE_URL` degrades to localhost, so a bind you forgot looks like a network fault. Confirm the
