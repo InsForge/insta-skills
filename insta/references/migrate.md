@@ -29,6 +29,24 @@ no project link.
 
 **1. Provision, bind, deploy.**
 
+**Pre-flight, before you deploy anything: find out how the app learns its own hostname.** This is
+pure code reading, it needs no platform access, and doing it now is the difference between a planned
+step and a mystery 400 after the cutover. Open the app's settings and answer two questions:
+
+- **Does it gate anything on its public host?** Django `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS`,
+  Rails `config.hosts`, Phoenix `check_origin`, and any OAuth callback, cookie domain or absolute
+  link builder.
+- **Where does it read the host from?** A variable you can set (Render's
+  `RENDER_EXTERNAL_HOSTNAME`), or a literal you must edit (Fly's `.fly.dev`, Heroku's fallback
+  list)? See the per-source table in the Render section for what each platform's apps actually do.
+
+**Write down the variable name, or the file and line to change.** You cannot set the value yet —
+on insta-compute the host is minted by the plane at first deploy, so it does not exist until after
+the deploy below (`adapters/insta-compute.ts`: routeKey is "learned at first deploy", and
+`access_host` "is the only source of truth"). **That is why this is two steps: decide here, apply in
+step 5.** If the answer was "a literal I must edit", make that edit NOW, before the deploy, so the
+image is already right.
+
 ```bash
 insta services add postgres db                          # + redis/storage/… as the source needs
 insta services add compute app --port <n>               # REQUIRED: the bind below targets it
@@ -68,7 +86,21 @@ components alongside the URL, so binding `REDIS_HOST` or `MYSQL_USERNAME` is fin
 
 Deploy an image that carries a **psql client** if you intend to verify from inside the app in step 5
 — `nginx:alpine` and friends cannot.
-*Pass:* the app boots and serves, even against an empty database.
+*Pass:* **curl the URL and read the status** — not `insta compute status`, which reports a service
+healthy whenever the port accepts TCP, so an app that refuses every request looks identical to one
+that works.
+
+```bash
+insta services list                    # read the compute row's host column
+curl -s -o /dev/null -w '%{http_code}\n' "https://<that host>"
+```
+
+Read the host rather than parsing it out of the row: the column position shifts on a service that
+has no image yet, so a clever one-liner can hand you the wrong string silently.
+
+Any 2xx/3xx, or a 5xx from the app's own code, means it is serving and step 5 can proceed. **A 400
+here is the hostname problem from the pre-flight**, not a database or build fault, and it is fixed
+in step 5 rather than by redeploying. Working against an empty database is expected at this point.
 
 **2. Stop the writers — on BOTH sides.**
 
@@ -243,6 +275,21 @@ brings the machine back **with the env it was deployed with**, so the app keeps 
 pre-migration database — while `insta secrets bindings` already reports the new source. `restart`
 does re-resolve (`restarted … — env re-resolved from the current secrets`) but is **refused on a
 stopped service**, so the changed-binding case is `start` *then* `restart`.
+
+**Now apply the pre-flight finding**, because the host finally exists. Read it off the service row
+and set it into the name the app actually reads — its own name, never ours; the app has no idea
+`INSTA_*` exists:
+
+```bash
+insta services list                                   # the compute row's host column
+insta secrets set RENDER_EXTERNAL_HOSTNAME <that host>   # or DJANGO_ALLOWED_HOSTS, or whatever it reads
+insta compute restart <service>                       # env is materialized at deploy time
+```
+
+Set only what the app needs. Faking a *second* variable to make it believe it is still on the old
+platform is how the Render case turns a 400 into a 500 (the ladder in the Render section). Treat
+this as an expedient that gets the cutover serving, and open a follow-up to give the app a neutral
+way to read its host, since the value you just set is named after a platform it has left.
 
 *Pass:* **check the machine, not the intent.**
 
