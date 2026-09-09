@@ -11,8 +11,24 @@ losing writes.
 
 **Running as an agent.** Every `insta` invocation below carries `--agent`, per SKILL.md's rule:
 always pass it, including for read-only commands, and do not rely on environment detection. The
-session is project-bound, so a mutation without one fails with `agent session missing, expired, or
-for another project/environment` — run `insta --agent setup agent` rather than dropping the flag.
+session is project-bound, so a command without one fails with `agent session missing, expired, or
+for another project/environment`.
+
+**Recovering from that error: always pass `--env`.**
+
+```bash
+insta --agent env                                   # read the env you are ON first
+insta --agent setup agent --env <that env> -y       # NEVER bare
+```
+
+`--env` defaults to **prod**, and its own help says "switches and persists, like `insta env use`"
+(`cli/src/index.ts`). `setup.ts` is explicit about what that costs: the switch "goes through
+`env use` — the one path that persists the choice and **drops the now-foreign session**". So a bare
+`insta setup agent` on a staging machine logs the whole machine out of staging, for every project,
+and only a human can restore it with a browser flow. **That turns a one-project session error into
+a machine-wide outage** — measured, on this machine, during the validation run this file came from.
+If the login itself is gone (`insta --agent env` shows `user: (not logged in)`, and commands return
+`unauthorized (HTTP 401)`), you cannot fix it: relay `insta login` to a human and stop.
 **Never remove `--agent` to get past a governance refusal**; relay the approval command to a human
 admin and retry the unchanged request.
 
@@ -46,7 +62,16 @@ temp dir created no local `.insta/` at all and rewrote `~/.insta/project.json`, 
 **So do not rely on the link at all when you are one of several workers.** Pass
 `INSTA_PROJECT_ID` (plus `INSTA_ORG_ID`), which `readProject` honours ahead of any file: "an
 explicit parameter outranks ambient state". If you do use the link, capture the resolved file first
-and restore it after. Note `~/.insta/project.json` is a different file from `~/.insta/config.json`,
+and restore it after.
+
+**`INSTA_PROJECT_ID` alone is not enough for parallel workers, though.** The **agent session** is a
+second file found by the *same* walk-up — `loadAgentSession` and `saveAgentSession` both resolve
+`findProjectRoot(cwd) ?? cwd` and read `.insta/agent-session.json` (`cli/src/agent.ts`) — and the
+session is rejected unless `session.projectId` equals the project you are targeting. So N workers
+sharing one home share **one** session file keyed to **one** project, and every worker but that one
+fails with `agent session missing, expired, or for another project/environment` no matter what
+`INSTA_PROJECT_ID` says. **Give each worker its own directory containing a `.insta/project.json`**
+so the walk-up stops there and each gets its own session file. Note `~/.insta/project.json` is a different file from `~/.insta/config.json`,
 which holds the env and session and carries no project link.
 
 **1. Provision, bind, deploy.**
