@@ -243,6 +243,7 @@ insta --agent secrets set NAME value                 # user config (project-wide
 insta --agent build . --port 8080                    # local pre-deploy build/readiness check
 insta --agent deploy . --port 8080                   # build (Dockerfile) + deploy to the current branch
 insta --agent deploy --image <ref> --port 8080       # prebuilt image instead
+insta --agent compute connect-repo owner/repo app    # or: build + deploy from GitHub on every push (cloud; GitHub App in the console first, or --public)
 insta --agent compute exec app -- printenv PORT      # one-shot command on live compute (no shell/stdin)
 insta --agent compute volume app --size 1Gi          # attach/grow persistent /data; mounts on next deploy
 insta --agent branch create feat && insta --agent branch list --json
