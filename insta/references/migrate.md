@@ -40,6 +40,28 @@ it. **`insta compute restart` is refused while a service has no image** ("this s
 machines yet — deploy an image first, then retry"), so a first migration is bind → **deploy**, never
 bind → restart.
 
+**Postgres exposes exactly one credential: `DATABASE_URL`.** If the source app reads the discrete
+components instead — `PGHOST` / `PGUSER` / `PGPASSWORD` / `PGDATABASE` / `PGPORT`, which is what
+Railway injects by default and what `railwayapp-templates/django` reads via `os.environ[...]` —
+**point the app at the single DSN rather than trying to reproduce the five.** In Django that is
+`dj-database-url`; most stacks accept a DSN directly. Do this as part of the migration, not after.
+
+The reason it must be a code change is that the alternative fails *silently*. `insta secrets bind`
+validates the env name only against `^[A-Z][A-Z0-9_]{0,63}$`, and for a postgres source
+`--source-name` defaults to the only allowed key, so
+
+```bash
+insta secrets bind PGHOST postgres/db --to compute/app    # accepted, and WRONG
+```
+
+is accepted and sets `PGHOST` to the **whole connection string**. Nothing complains at bind time;
+the app fails later trying to resolve a hostname that is actually a URL. (From
+`insta-platform/src/provisioning/userSecrets.ts:78,88` and `secretNames.ts:5`, read at `a79b067`;
+not executed.) Splitting the DSN into five plain secrets with `insta secrets set` does work, but
+they are then static copies that no longer follow a rotation, which is the whole point of a
+binding. Note this asymmetry is postgres-only: `redis`, `mysql` and `mongodb` each expose their
+components alongside the URL, so binding `REDIS_HOST` or `MYSQL_USERNAME` is fine.
+
 Deploy an image that carries a **psql client** if you intend to verify from inside the app in step 5
 — `nginx:alpine` and friends cannot.
 *Pass:* the app boots and serves, even against an empty database.
