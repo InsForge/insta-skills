@@ -154,9 +154,11 @@ If a source exposes exactly one credential (`postgres` → `DATABASE_URL`), `--s
 optional. If it exposes several (`storage`, `redis`, `mysql`, `mongodb`), pass the source credential
 name to bind. Binding overwrites the target env var's previous binding; an env name that collides
 with a user secret visible to the same compute service is rejected (409). Binding itself does not
-expose plaintext — the one CLI read that does is `insta --agent db url` / `insta --agent db connect` (the postgres
-DSN, gated `secrets.read`); every other credential value only runs where it is bound (the deployed
-app, or `insta --agent compute exec`).
+expose plaintext. Two reads do: `insta --agent secrets` / `insta --agent run`, which carry each
+type's **primary** service credentials, and `insta --agent db url` / `insta --agent db connect` for a
+**specific** postgres DSN (both gated `secrets.read`). What binding decides is what a **compute
+service** receives — a non-primary same-type service's credentials reach code only that way, or
+through `insta --agent compute exec` on the machine itself.
 Changes apply on the next deploy — **or on `insta --agent compute restart`** (CLI ≥ 0.0.51), which re-runs
 the image reference the service already runs against a freshly resolved bundle. There is still no hot reload:
 either way the machine takes a new config and restarts on it, in place (the machine id survives). An

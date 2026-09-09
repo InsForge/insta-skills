@@ -283,8 +283,10 @@ If a request spans two areas ("deploy and check it's healthy"), load both and an
 
 - **Prefer `insta --agent run -- <cmd>`** for user-defined project/branch secrets — the bundle is fetched per
   invocation and injected into the child environment only; nothing is written to disk, so nothing can
-  leak or be committed. Provider-minted service credentials are not in this bundle; bind them to a
-  compute service with `insta --agent secrets bind`, then deploy (or `insta --agent compute restart` an already-running
+  leak or be committed. The bundle also carries the branch's **canonical** provider credentials —
+  one set per type, from that type's primary service — so a local run reaches the database without
+  binding anything. What a **compute service** receives is separate: bind with
+  `insta --agent secrets bind`, then deploy (or `insta --agent compute restart` an already-running
   service, CLI ≥ 0.0.51 — a binding change never reaches a live machine on its own).
 - When a file is genuinely needed, treat `./.env` (from `insta --agent secrets`; auto-gitignored in git
   repos) as the **only** file-based source for user-defined secrets — never hardcode or print secret

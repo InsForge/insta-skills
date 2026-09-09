@@ -70,8 +70,11 @@ secret or binding takes effect on the **next deploy**, or on **`insta --agent co
 and restarts on it, in place. Whether an *idle* machine is woken to do so depends on the compute
 provider; see [operate.md](operate.md) before treating a restart as proof the app came back.
 
-Provider credential **values** stay out of the general bundle (`insta --agent secrets` / `insta --agent run` carry
-only user-defined secrets). The one direct read is the postgres DSN — `insta --agent db url` /
+Provider credential **values** reach two places by different routes. The local seam
+(`insta --agent secrets` / `insta --agent run`) carries user-defined secrets **plus** each type's
+**primary** service credentials, so `.env` and a local run have a working `DATABASE_URL` as soon as
+the branch has a postgres. A **compute container** gets nothing it was not explicitly bound. For a
+**specific** (non-primary) postgres there is also a direct read — `insta --agent db url` /
 `insta --agent db connect` (gated `secrets.read`) — for psql, migrations, and tools outside compute; pick
 client tools of the server's Postgres major first (`pg_version` on `insta --agent services list --json`; a row
 without one falls back to the exact-version read in [operate.md](operate.md)).

@@ -17,7 +17,7 @@ The unprotected-branch defaults are:
 | Action | Default | Guards |
 | --- | --- | --- |
 | `project.delete` | **deny** | destroying every resource |
-| `secrets.read` | allow | plaintext user-secret reads (`insta --agent secrets` / `insta --agent run`), the postgres DSN (`insta --agent db url` / `insta --agent db connect`), and names-only binding/source views; also gates `compute exec`, paired with `deploy` |
+| `secrets.read` | allow | plaintext bundle reads — user secrets **and** each type's primary service credentials (`insta --agent secrets` / `insta --agent run`) — the postgres DSN (`insta --agent db url` / `insta --agent db connect`), and names-only binding/source views; also gates `compute exec`, paired with `deploy` |
 | `secrets.write` | allow | user-secret changes and provider credential bind/unbind |
 | `deploy` | allow | code reaching compute (and the build-token mint); also gates `compute restart` (which lands configuration through the same path) and `compute exec`, the latter paired with `secrets.read` |
 | `branch.delete` | **approve** | tearing down an environment |
