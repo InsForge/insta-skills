@@ -310,10 +310,50 @@ Bind every credential the app needs; nothing is auto-injected into compute.
 
 **Render.** Buildpack-built, so almost never a Dockerfile — `insta compute connect-repo` is the
 shortest path. **Its Postgres is 18, so step 3 is a downgrade** into insta's pg16. Step 3 has the tested
-procedure for that; it is one filtered line, not a blocker. `render.yaml`, if present, is the fastest inventory you
-will get: it declares every service and database and how the environment is wired, and two of its
-forms need care — `generateValue` values were invented by Render and have **no source of truth
-outside it**, and `sync: false` values were typed by a human and were **never in the file at all**.
+procedure for that; it is one filtered line, not a blocker.
+
+**Translate `render.yaml` yourself — there is no importer, and you do not need one.** If the repo
+has one, read it and provision from this table rather than interviewing the user. Every row is a
+command you already have:
+
+| In `render.yaml` | Do this |
+|---|---|
+| `databases: [{name: X}]` | `insta services add postgres X` |
+| `services: [{type: web, name: X}]` | `insta services add compute X --port <n>` |
+| `type: worker` | a second compute service; give it a port and leave always-on (step 6 of this file's worker notes) |
+| `type: cron` | no equivalent: `pg_cron`, or a scheduler inside an always-on compute service |
+| `type: pserv` (private service) | a compute service, but **flag it to the user**: `insta services add` assigns a default domain to every compute service, so a Render private service stops being unreachable from the internet |
+| `runtime: python` / `node` / `ruby` / `go` (any non-`image`) | `insta compute connect-repo <owner/repo> X` — nixpacks does what the buildpack did |
+| `runtime: image`, `image.url` | `insta deploy --image <url> --port <n>` instead; do NOT reach for connect-repo |
+| `envVars: [{fromDatabase: {...}}]` | `insta secrets bind DATABASE_URL postgres/X --to compute/Y` |
+| `envVars: [{fromService: {...}}]` | usually a plain secret: only credential-minting services can be bound |
+| `envVars: [{value: V}]` | `insta secrets set KEY V` |
+| `envVars: [{generateValue: true}]` | Render invented it. **Carry the existing value over, do not regenerate** — for a Django `SECRET_KEY` a new one logs out every session, and for an app's own signing keys it invalidates issued tokens |
+| `envVars: [{sync: false}]` | never in the file. Read it from the API below, or ask the user |
+| `envVarGroups:` | **not returned by the env-vars API** (see below); resolve these from the dashboard |
+| `disk: {mountPath, sizeGB}` | `--volume <gi>` on `insta services add`, or `insta compute volume X --size <gi>` later. It mounts at `/data` and only on the deploy *after* it is attached, so a different `mountPath` means a code or config change |
+| `healthCheckPath` | not a knob here; insta health-checks the port |
+| `numInstances` | `insta services scale compute X <n>` (1 to 10, same region, paid plans) |
+| `plan:` | `insta compute limits` / `insta db limits` |
+| `region:` | `--region` on `insta services add` (values from `insta regions`) |
+| `autoDeploy: false` | nothing to do: `connect-repo` deploys on push, and `builds.auto_deploy` is not implemented on the compute plane anyway |
+
+**Env var values come from the API, not the CLI.** The Render CLI has **no** env-var subcommand at
+all (`deploys`, `jobs`, `keyvalues`, `logs`, `postgres`, `restart`, `services`, `workflows`,
+`workspaces`, `blueprints`, `environments`, `projects`, plus auth and session commands — that is the
+whole surface). The REST API does return values:
+
+```bash
+curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+  "https://api.render.com/v1/services/$SVC/env-vars" | jq -r '.[] | "\(.envVar.key)"'
+```
+
+Each item carries `key` **and** `value`, so this is how a `generateValue` or `sync: false` secret is
+recovered without the dashboard. Two limits: it returns only vars belonging **directly** to the
+service, so an `envVarGroups` member is invisible here, and the user has to mint the API key
+(Dashboard → Account Settings → API Keys) because there is no CLI login that yields one. **Ask for
+that key at the start**, not after provisioning. Print keys only; never echo a value into the
+transcript.
 
 CLI shape, measured rather than read off the docs: `render services -o json --confirm` returns
 services **and** databases together; `render psql <id> --command "…" -o json --confirm` is the
@@ -346,9 +386,35 @@ the export has three traps, all measured:
 - **A volume cannot be read while its service is stopped** — no offline browse; `render`-style file
   listing refuses with "has no active deployment", so auditing one means starting the service.
 
-Also: `railway link` writes the global `~/.railway/config.json` keyed by cwd, not a local directory,
-so "cd somewhere safe" is not isolation. Railway's Postgres template is **18**, so it is a downgrade
-too. Its volumes carry the same caveat as any: creating a target volume does not copy contents.
+**Ask for a project token before you start.** `railway link` and `railway service` are interactive
+pickers, and you cannot answer a picker. `RAILWAY_TOKEN` is project-scoped (Project Settings →
+Tokens) and `RAILWAY_API_TOKEN` is account-scoped; take the **project** one for a single migration.
+Also note `railway link` writes the **global** `~/.railway/config.json` keyed by cwd, not a local
+file, so "cd somewhere safe" is not isolation.
+
+**Translate the project yourself.** There is no `render.yaml` equivalent declaring the services:
+`railway.json` carries only build and deploy config, and the services live in the project, so read
+`railway status --json` for the shape and `railway variable list` per service for the env.
+
+| On Railway | Do this |
+|---|---|
+| a service, `builder: RAILPACK` or `NIXPACKS` | `insta services add compute X --port <n>`, then `insta compute connect-repo <owner/repo> X` |
+| a service built from a Dockerfile | same, `connect-repo` builds the Dockerfile when there is one |
+| a service deployed from an image | `insta deploy --image <url> --port <n>` |
+| the Postgres service | `insta services add postgres X` |
+| Redis / MySQL / MongoDB services | `insta services add redis\|mysql\|mongodb X` |
+| `deploy.startCommand` running migrations | do NOT carry it over as a startup gate; run migrations with `insta compute exec` (see SKILL.md) |
+| `${{Postgres.DATABASE_URL}}` and friends | `insta secrets bind DATABASE_URL postgres/X --to compute/Y` |
+| an app reading `PGHOST` / `PGUSER` / `PGPASSWORD` / `PGDATABASE` / `PGPORT` | a code change to read `DATABASE_URL`, per step 1 above. Railway injects these by default, so expect it |
+| `RAILWAY_*` built-ins, `PORT` | skip: render-time only, and the platform supplies `PORT` here |
+| any other variable | `insta secrets set KEY` |
+| a volume | `--volume <gi>` on `insta services add`, or `insta compute volume X --size <gi>`; mounts at `/data` on the **next** deploy, and download the source contents while its service still runs |
+| `numReplicas` | `insta services scale compute X <n>` (1 to 10, same region, paid plans) |
+| a cron service | no equivalent: `pg_cron`, or a scheduler inside an always-on compute service |
+| multi-region replicas | not available; one region per service, chosen with `--region` at add time |
+
+Railway's Postgres template is **18**, so step 3 is a downgrade. Its volumes carry the same caveat
+as any: creating a target volume does not copy contents.
 
 **Fly.** The easiest source of the four, and the only one that is not a Postgres downgrade: Fly
 Managed Postgres runs **16**, the same major as insta's, so step 3 needs no filter. A Fly app also
