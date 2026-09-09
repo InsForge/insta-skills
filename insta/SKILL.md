@@ -71,8 +71,12 @@ types you build directly against are:
 `insta --agent services add storage <name>`, `insta --agent services add redis <name>`, etc. A project may have
 **multiple services of every type** (up to 5 per type). Provider credentials are scoped to the
 service that minted them and use canonical names inside that scope (`DATABASE_URL`, `REDIS_URL`,
-`MYSQL_URL`, `MONGODB_URL`, `AWS_ACCESS_KEY_ID`, `BUCKET_NAME`, …). They do **not** automatically
-appear in `insta --agent secrets`, `insta --agent run`, or compute env. Bind the credentials a compute service needs,
+`MYSQL_URL`, `MONGODB_URL`, `AWS_ACCESS_KEY_ID`, `BUCKET_NAME`, …). The **local-dev seam**
+(`insta --agent secrets` → `.env`, `insta --agent run`) carries one set per type, from that type's
+**primary** service on the branch — but they do **not** automatically appear in **compute env**: a
+container gets a provider credential only through an explicit binding, and a non-primary same-type
+service is reachable via `insta --agent db url --group <name>` or a binding, not the bundle. Bind
+the credentials a compute service needs,
 then deploy — or, if the service is already running, `insta --agent compute restart` (CLI ≥ 0.0.51) to pick
 the binding up without deploying a new one. It re-runs the image *reference* already recorded, so a
 service on a moving tag (`app:latest`) still gets whatever that tag resolves to now — see
@@ -234,8 +238,9 @@ allow/deny/approve, using the project's agent policy). When a command returns
 insta --agent status --json                          # target, login, link, current branch
 insta --agent manifest --json                        # agent-legible env view: every branch's services + URLs
 insta --agent services list --json                   # what exists on this project
-insta --agent run -- <cmd>                           # run with user-defined secrets injected (NOTHING on disk; --branch <b>)
-insta --agent secrets --print                        # user-defined secrets for the current branch (--branch <b>)
+insta --agent run -- <cmd>                           # run with the branch bundle injected (NOTHING on disk; --branch <b>)
+insta --agent run --service compute/app -- <cmd>     # one service's own env — needed when several define the same name
+insta --agent secrets --print                        # the branch's secrets (--branch <b>, --service <compute/name>)
 insta --agent secrets sources --json                 # provider credential sources available to bind
 insta --agent secrets bind DATABASE_URL postgres/db --to compute/app
 insta --agent secrets bindings --target compute/app --json

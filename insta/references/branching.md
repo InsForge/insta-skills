@@ -14,8 +14,10 @@ diverge independently — adding, removing, or scaling a service on one has no e
 `project → branch → service → secrets` (`insta --agent secrets tree`; a branch's slice is
 `insta --agent secrets list`). Provider-minted credentials live under the service that produced them with
 canonical names (`DATABASE_URL`, `REDIS_URL`, `MYSQL_URL`, `MONGODB_URL`, `AWS_*`,
-`BUCKET_NAME`, …), but they do **not** automatically enter `insta --agent secrets`, `insta --agent run`, or compute
-deployments. Bind the provider credentials each compute service needs:
+`BUCKET_NAME`, …). `insta --agent secrets` and `insta --agent run` carry one set per type from
+that type's **primary** service on the branch, so a branch's `.env` works out of the box; they do
+**not** automatically enter **compute deployments**, which receive a provider credential only
+through an explicit binding. Bind the provider credentials each compute service needs:
 
 ```bash
 insta --agent secrets sources --branch feat-x
