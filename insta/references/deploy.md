@@ -128,9 +128,12 @@ insta --agent domain status myapp.com                           # poll until act
 
 Three things to get right as an agent:
 
-1. **`buy` cannot finish without a human, twice over.** It is `domain.purchase`-gated (approval
-   tier), and even once approved it answers a Checkout URL someone has to open and pay. Relay both
-   verbatim and stop; do not report the domain as bought.
+1. **`buy` always ends with a human; whether it also starts with one depends on the policy.** The
+   Checkout URL it answers has to be opened and paid by a person — that half is unconditional, so
+   relay it verbatim and stop rather than reporting the domain as bought. Whether the ORDER needs
+   approval first is the project's agent policy: `full_access`, which a new project starts on,
+   allows `domain.purchase` outright and you get the URL immediately; `branch_developer` answers
+   `approval_required` (relay that line too); `read_only` refuses.
 2. **Nothing is registered before payment, and registrations are non-refundable.** A wrong name is
    real money, so read the quote back before ordering.
 3. **The registrant is the customer, not us**, and setting the org default is a **human** step: the
