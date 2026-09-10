@@ -178,6 +178,16 @@ machine ever existed). **Reproduce locally to learn why:** `insta build <dir>`, 
 `nixpacks build <dir>` for the full output. That is how the celery cause (no detectable start
 command) was found.
 
+**Before reaching for a different lane: almost no migration blocker is a lane problem.** Measured
+across six real repos, the things that stopped a migration were **app-side** (an `ALLOWED_HOSTS`
+that only reads the old platform's variable; a missing `APP_KEY`; a DSN parser that drops
+`sslmode`) or **builder-side** (nixpacks detecting no start command; nixpacks pinning a language
+version the app predates). None were about how the source reached the builder. The build request
+carries only `source`, `build` and `target` — **there is no start-command field at all**, and on
+the nixpacks type "only `context_path` is configurable" — so no choice of lane can supply one. When
+a build fails, fix the repo (a `Procfile`, a version pin, a committed `Dockerfile`), not the
+transport.
+
 **Which lane, and why it is `connect-repo` for a migration.** Two independent constraints rule out
 the directory deploy, and only one of them is about the compute plane:
 
