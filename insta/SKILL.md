@@ -222,7 +222,7 @@ serves:
 ## Approval relay (CRITICAL — gated actions)
 
 Sensitive actions are gated at the credential boundary (`secrets.read`, `secrets.write`, `deploy`,
-`project.delete`, `branch.delete`, `service.add/remove/scale/upgrade`; policy per action:
+`project.delete`, `branch.delete`, `service.add/remove/scale/upgrade`, `domain.purchase`; policy per action:
 allow/deny/approve, using the project's agent policy). When a command returns
 **"approval required" with an approval id**:
 
