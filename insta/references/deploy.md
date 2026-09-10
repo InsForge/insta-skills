@@ -122,7 +122,7 @@ The records live in **your** registrar (CNAME for a subdomain, A/AAAA for an ape
 ```bash
 insta domain contact set --first-name … --phone +14155550100   # once per org — HUMAN, admin, no --agent
 insta --agent domain search myapp --tlds com,dev                # prices you pay, + renewal
-insta --agent domain buy myapp.com                              # → a Stripe Checkout URL
+insta --agent domain buy myapp.com --no-open                     # → a Stripe Checkout URL to relay
 insta --agent domain status myapp.com                           # poll until active
 ```
 
