@@ -448,8 +448,11 @@ available. Via MCP: the `insta_feedback` tool takes the same fields (plus explic
   `service.add` / `service.remove` / `service.rename` / `service.scale` / `service.upgrade` /
   `service.setAccess`. `approve` = require a
   human: the action returns `approval_required` — the hint prints to **stderr** and the command
-  **exits 2** (CLI ≥ 0.0.37; distinct from exit 1 = error, so treat exit 2 as "pending, not
-  failed"); an admin runs `insta approvals approve <id>`, then
+  **exits 2** (CLI ≥ 0.0.37; distinct from exit 1 = error, so treat exit 2 **on an
+  `approval_required` response** as "pending, not failed" — `insta run` also exits 2 to refuse a
+  same-name collision, where no approval is coming and the stderr message names the two ways
+  forward instead; see the exit-2 note under [Commands](#commands)); an admin runs
+  `insta approvals approve <id>`, then
   you **re-run the unchanged request** (single-use grant). In `branch-developer`, project deletion
   is denied and unprotected service deletion requires approval. Approval never changes policy;
   a human must explicitly update `agent-policy` for a lasting rule change.
