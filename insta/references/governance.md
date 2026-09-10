@@ -27,6 +27,7 @@ The unprotected-branch defaults are:
 | `storage.read` | allow | listing a bucket, downloading, previewing |
 | `storage.write` | allow | uploading an object |
 | `storage.delete`, `db.restore`, explicitly classified `db.destructive` | **approve** | deletion/restoration |
+| `domain.purchase` | **approve** | `insta domain buy` — it spends the org's money at a registrar, and a registration is non-refundable. Approval only unblocks the order: the human still has to pay the Stripe Checkout link it answers |
 | `agent_policy.update`, `branch.protection.update`, project administration | **deny** | an agent cannot loosen its own restrictions |
 
 Decisions: `allow` (proceed) · `deny` (hard no) · `approve` (human in the loop).
