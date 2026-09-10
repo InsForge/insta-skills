@@ -41,7 +41,7 @@ keys and raw request data must not be included in source control or approval rep
 | `insta --agent regions` [`--json`] | list regions available for postgres/compute services |
 | `insta --agent services list` [`--json`] [`--branch <b>`] · `insta --agent services rename <type> <name> <new-name>` [`--json`] [`--branch <b>`] · `insta --agent services remove <type> <name>` [`--branch <b>`] [`--json`] | list / rename / remove a branch's services (default: current branch; bindings keep pointing at renamed services; gated: `service.rename` / `service.remove`). `list --json` rows carry `pg_version` on postgres services (a platform field — any CLI passes it through; one per service row — a branch with several postgres services has one each) — the Postgres **major** the instance runs (e.g. `16`), known without waking it — so pick `pg_dump`/`pg_restore`/`psql` of the **same major** before you connect (a newer client's dump emits statements the server rejects, and a default restore continues past them). **(CLI ≥ 0.0.57)** the human line shows it as `pg 16`; `services add postgres` and `manifest` print the same badge. Rows older than the field were backfilled from the image every instance was born from, so if a restore still fails on version grounds against an old instance, confirm with `serverVersion`. `null` = a legacy row that never recorded one; key absent = a platform that predates the field. Either way, read the exact version instead, selecting the same branch and service as the DSN: `insta --agent db stats --json --branch <b> [--group <g>]` reports `serverVersion` but never wakes a suspended instance (field present only while it runs), and `psql "$(insta --agent db url --branch <b> [--group <g>])" -c 'show server_version'` answers in one step, waking it |
 | `insta --agent services secrets <type> <name>` [`--branch <b>`] [`--json`] | secret **names** bound to one service (e.g. `insta --agent services secrets postgres db`) — default: current branch |
-| `insta --agent db url` [`--branch <b>`] [`--group <g>`] [`--json`] | print a postgres service's **connection string** (DSN). Default output is the bare URL alone on stdout, pipe-friendly (`psql "$(insta --agent db url)"`); `--json` replaces it with a `{service, branch, url}` envelope. This is **the** command that yields the DSN: provider credentials are not in `insta --agent secrets` (gated: `secrets.read`). `--group` picks one when the branch has several postgres services |
+| `insta --agent db url` [`--branch <b>`] [`--group <g>`] [`--json`] | print a postgres service's **connection string** (DSN). Default output is the bare URL alone on stdout, pipe-friendly (`psql "$(insta --agent db url)"`); `--json` replaces it with a `{service, branch, url}` envelope. The bundle carries only the **primary** postgres service's `DATABASE_URL`, so this is the command that yields a *specific* service's DSN (gated: `secrets.read`). `--group` picks one when the branch has several postgres services |
 | `insta --agent db connect` [`--branch <b>`] [`--group <g>`] | open an **interactive psql session** on a postgres service (needs `psql` on PATH; gated: `secrets.read`). A suspended instance wakes on connect — the first prompt can take a few seconds. Exits with psql's own exit code |
 | `insta --agent db stats` [`--branch <b>`] [`--group <g>`] [`--json`] | point-in-time **postgres stats snapshot**: connections vs the server's max (active count), cache hit rate, database size. Read-only; insta-db-backed services answer from the control plane without waking a suspended instance — `serverVersion` (rendered `PG 16.4`) is present only while the instance is running, like `cacheHitRatio`. Same read as the `insta_db_stats` MCP tool's `metrics` kind (its `insight`/`activity`/`query-stats` kinds are MCP-only) |
 | `insta --agent services scale compute <name> <number>` [`region`] | set the compute service's same-region replica count (**1–10**) — **paid plans only** (free → 403); gated: `service.scale`. `region` is an InstaCloud slug (e.g. `us-east`; see `insta --agent regions`), **not** a raw Fly code |
@@ -57,14 +57,15 @@ keys and raw request data must not be included in source control or approval rep
 | `insta --agent branch switch <name>` [`--json`] · `insta --agent branch list` [`--json`] | set current branch / list |
 | `insta --agent branch merge <source>` [`--into <target>`] [`--json`] | **structural** merge: creates on the target branch (default: current) every service present on `<source>` but missing there — fresh & **empty, no data copied**. Services the target already has are skipped (reason: `exists`\|`cap`\|`secret-collision`). Additive only — never deletes target services; idempotent |
 | `insta --agent branch delete <name>` [`--json`] | tear down the branch's resources (gated: `branch.delete`) |
-| `insta --agent secrets` [`--branch <name>`] [`-o <file>`] [`--print`] [`--json`] | secret seam → write user-defined project/branch secrets to `./.env`; provider-minted service credentials are **not** exported here (gated: `secrets.read`) |
+| `insta --agent secrets` [`--branch <name>`] [`--service <compute/name>`] [`-o <file>`] [`--print`] [`--json`] | secret seam → write the branch's secrets to `./.env` (gated: `secrets.read`). Carries user-defined project/branch secrets **plus the branch's canonical provider credentials** — one `DATABASE_URL` / `REDIS_URL` / `AWS_*` set from the **primary** service of each type (see **Provider credentials** below). **`--service <compute/name>` (CLI ≥ 0.0.65)** answers with **one compute service's own** env instead of the branch-wide merge: that service's user secrets, the unbound ones, its explicit bindings, and the same canonical credentials. Needed when several services define the same name — see **Same-name variables** below |
 | `insta --agent secrets list` [`--branch <b>`] [`--json`] | secret names for the branch, **grouped by service** — each service's bound secrets, plus a branch-level "unbound" group and a project-wide group |
 | `insta --agent secrets tree` [`--json`] | the whole project as `project → branch → service → secrets` (names only) |
 | `insta --agent secrets set <NAME> [value] [--branch <b>] [--service <compute/name>] [--json]` | Set a user secret (project-wide by default; value from stdin if omitted). `--service` scopes it to that branch's compute service (e.g. `compute/api`) — binding **requires a branch** (defaults to the current branch when `--service` is given); omit `--service` for an unbound secret (as before) |
-| `insta --agent secrets unset <NAME> [--branch <b>] [--json]` | Remove a user secret |
+| `insta --agent secrets unset <NAME> [--branch <b>] [--service <compute/name>] [--json]` | Remove a user secret. **`--service` (CLI ≥ 0.0.65)** removes **only that service's copy**, leaving a sibling's same-name value alone; without it the original name-keyed delete removes every matching copy at the scope |
 | `insta --agent secrets sources` [`--branch <b>`] [`--json`] | List provider credential sources available for explicit compute binding, e.g. `postgres/db: DATABASE_URL` or `redis/cache: REDIS_URL, ...` (names only; gated: `secrets.read`) |
 | `insta --agent secrets bind <ENV_NAME> <source>` [`--source-name <name>`] `--to <compute/name>` [`--branch <b>`] [`--json`] | Bind one provider credential from `<source>` (`postgres/db`, `redis/cache`, `mysql/orders`, `mongodb/catalog`, `storage/assets`, …) into a compute service's runtime env var. `--source-name` is required when the source exposes multiple credential names. Takes effect on the next deploy — or immediately on a running service with `insta --agent compute restart` (CLI ≥ 0.0.51) (gated: `secrets.write`) |
 | `insta --agent secrets bindings --target <compute/name>` [`--branch <b>`] [`--json`] | List provider credential bindings for one compute service (names only; gated: `secrets.read`) |
+| `insta --agent run [--branch <b>] [--service <compute/name>] [--ignore-collisions] -- <cmd> [args…]` | run a command with the branch's secret bundle injected into **its environment only** — nothing written to disk, so there is no `.env` to leak, stale out or commit. The bundle lives exactly as long as the process. `--service` injects **one compute service's own** env (the unambiguous read). **On a collision it REFUSES (CLI ≥ 0.0.65): nothing is spawned and it exits 2.** Warning would not be enough — `run` spawns with `{...process.env, ...bundle}`, so a name the platform withheld would fall through to whatever your shell exported, and clearing it is not observable either since the child may hold its own default. `--ignore-collisions` runs anyway with every colliding name **removed** from the child env. No `--json` (its stdout belongs to the child; the banner and any collision report are on stderr) |
 | `insta --agent secrets unbind <ENV_NAME> --from <compute/name>` [`--branch <b>`] [`--json`] | Remove one provider credential binding from a compute service; takes effect on the next deploy — or immediately on a running service with `insta --agent compute restart` (CLI ≥ 0.0.51) (gated: `secrets.write`) |
 | `insta --agent build [dir]` [`--explain`] [`--port <n>`] [`--json`] | **verify before you deploy** — local, offline, deploys nothing, needs no login: prints the detection plan (builder, install/build/start commands, port **with the reason it was chosen**, `.env.example` keys), the Dockerfile (yours, or — **if nixpacks is installed**, never auto-installed — the one nixpacks would generate; `--explain` includes its content), and static checks each with a next action (missing Dockerfile/start command, port mismatch, `node_modules` shipping in the build context). **Verdict semantics (CLI ≥ 0.0.48): only a Dockerfile IN the directory can make a dir `deployable`.** A dir with no Dockerfile where nixpacks detects the app gets `builder: nixpacks` but its Dockerfile check is a ⚠ warning and the verdict stops at `needs-attention` (exit 0) — because `insta --agent deploy <dir>` builds the directory's own Dockerfile and refuses without one; the nixpacks lane is server-side, for GitHub-connected repos only. The nixpacks Dockerfile shown by `--explain` is **for inspection, not standalone** (it `COPY`s `.nixpacks/` support files the dir does not have) — do NOT save it as `Dockerfile`; use the detected install/start commands as the starting point for your own. Verdict `failed` (exit 1) = no Dockerfile and nixpacks missing/undetected, or no start command. Run it before `insta --agent deploy <dir>` instead of finding out from a burned remote build |
 | `insta --agent deploy <dir>` / `--image <url>` [`--branch <b>`] [`--group <g>`] [`--port <n>`] [`--replace-source`] [`--json`] | deploy to a compute service — a **source dir** (**requires a `Dockerfile` in the dir — there is no no-Dockerfile/nixpacks lane on this path**; without one it exits 1 naming the options: write a Dockerfile, `--image <url>`, or connect the repo to the service (`insta --agent compute connect-repo <owner/repo> [service]`), whose server-side lane builds Dockerfile-less repos with nixpacks. On InstaCloud it builds the Dockerfile remotely on Fly — no local Docker; against a local insta-oss daemon the CLI builds with your local docker instead, same command) or a **prebuilt image**. Defaults to the branch's sole compute service; `--group` picks by name (gated: `deploy`). A service connected to a GitHub repo refuses a dir/image deploy (409) unless `--replace-source` is passed (admin): the image then replaces the repo connection. `--json` prints one `{image, machineId, url, branch, group, nextActions}` document on stdout — build progress moves to stderr so stdout stays parseable |
@@ -104,11 +105,26 @@ hint prints to **stderr** and the CLI **exits 2** — distinct from 1 (error), s
 branch on "approvable: have an admin `insta approvals approve <id>`, then re-run". Previously this
 printed to stdout and exited 0, which read as success in pipelines.
 
+**Exit 2 is not only approvals (CLI ≥ 0.0.65).** `insta --agent run` reuses it to refuse on a
+same-name collision, for the same reason — nothing ran, and it is re-runnable once the caller
+chooses. So do **not** read exit 2 as "ask an admin to approve": read the stderr message. An
+approval names an id to approve; a collision names the services that define the variable and the
+two ways through (`--service`, `--ignore-collisions`).
+
 Provider-minted credentials are **per-branch and per-service**. They live under the service that
 created them with canonical names (`DATABASE_URL`, `REDIS_URL`, `MYSQL_URL`, `MONGODB_URL`,
-`AWS_ACCESS_KEY_ID`, `BUCKET_NAME`, …), and **do not automatically appear** in `insta --agent secrets`,
-`insta --agent run`, or a compute deployment. Decide what each compute service should receive with explicit
-bindings:
+`AWS_ACCESS_KEY_ID`, `BUCKET_NAME`, …).
+
+Two destinations, opposite defaults — do not conflate them:
+
+- **The local-dev seam** (`insta --agent secrets` → `.env`, and `insta --agent run`) **does** carry
+  them: one set per credential-minting service type, from that type's **primary** service on the
+  branch. So a `.env` has a working `DATABASE_URL` as soon as the branch has a postgres. A
+  non-primary same-type service is not in the bundle. **Postgres** has a direct read for it,
+  `insta --agent db url --group <name>`; **no other type does** — bind it, or read the env of a
+  compute service it is bound to with `insta --agent secrets --service compute/<name>`.
+- **A compute deployment does not.** A container receives a provider credential **only** through an
+  explicit binding. Decide what each service should get:
 
 ```bash
 insta --agent secrets sources
@@ -118,13 +134,35 @@ insta --agent secrets bindings --target compute/app
 insta --agent deploy . --group app --port 8080
 ```
 
+**Same-name variables across services (CLI ≥ 0.0.65).** Per-service env is allowed, so two compute
+services on one branch may each hold their own `ADMIN_PASSWORD`. **A template deployed twice into
+the same branch produces exactly this** — the second deploy builds an independent copy (`app`,
+`app-2`) with its own generated variables under the same names, and re-deploying is the only way to
+update a template. A `.env` file and a process environment are flat `name=value` maps, so they
+cannot hold two values for one name:
+
+```bash
+insta --agent secrets                     # colliding names are OMITTED, and named on stderr
+insta --agent secrets --service compute/hermes   # hermes' own values — the unambiguous read
+insta --agent run --service compute/hermes -- npm run dev
+```
+
+`insta --agent secrets list` and `secrets tree` have always been accurate here — they group names by
+service. It is only the **value** reads that cannot answer such a name, and they now say so instead
+of picking one: the platform reports every colliding name with the services that define it, the CLI
+prints that to **stderr**, and `insta --agent run` refuses outright rather than injecting a value it
+cannot attribute. `--json` stdout is unchanged (still the bare `{NAME: value}` map); the collision
+report rides stderr as one JSON line.
+
 If a source exposes exactly one credential (`postgres` → `DATABASE_URL`), `--source-name` is
 optional. If it exposes several (`storage`, `redis`, `mysql`, `mongodb`), pass the source credential
 name to bind. Binding overwrites the target env var's previous binding; an env name that collides
 with a user secret visible to the same compute service is rejected (409). Binding itself does not
-expose plaintext — the one CLI read that does is `insta --agent db url` / `insta --agent db connect` (the postgres
-DSN, gated `secrets.read`); every other credential value only runs where it is bound (the deployed
-app, or `insta --agent compute exec`).
+expose plaintext. Two reads do: `insta --agent secrets` / `insta --agent run`, which carry each
+type's **primary** service credentials, and `insta --agent db url` / `insta --agent db connect` for a
+**specific** postgres DSN (both gated `secrets.read`). What binding decides is what a **compute
+service** receives — a non-primary same-type service's credentials reach code only that way, or
+through `insta --agent compute exec` on the machine itself.
 Changes apply on the next deploy — **or on `insta --agent compute restart`** (CLI ≥ 0.0.51), which re-runs
 the image reference the service already runs against a freshly resolved bundle. There is still no hot reload:
 either way the machine takes a new config and restarts on it, in place (the machine id survives). An
@@ -413,8 +451,11 @@ available. Via MCP: the `insta_feedback` tool takes the same fields (plus explic
   `service.add` / `service.remove` / `service.rename` / `service.scale` / `service.upgrade` /
   `service.setAccess`. `approve` = require a
   human: the action returns `approval_required` — the hint prints to **stderr** and the command
-  **exits 2** (CLI ≥ 0.0.37; distinct from exit 1 = error, so treat exit 2 as "pending, not
-  failed"); an admin runs `insta approvals approve <id>`, then
+  **exits 2** (CLI ≥ 0.0.37; distinct from exit 1 = error, so treat exit 2 **on an
+  `approval_required` response** as "pending, not failed" — `insta run` also exits 2 to refuse a
+  same-name collision, where no approval is coming and the stderr message names the two ways
+  forward instead; see the exit-2 note under [Commands](#commands)); an admin runs
+  `insta approvals approve <id>`, then
   you **re-run the unchanged request** (single-use grant). In `branch-developer`, project deletion
   is denied and unprotected service deletion requires approval. Approval never changes policy;
   a human must explicitly update `agent-policy` for a lasting rule change.
