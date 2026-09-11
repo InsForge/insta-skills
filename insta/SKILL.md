@@ -254,7 +254,7 @@ insta --agent secrets bind DATABASE_URL postgres/db --to compute/app
 insta --agent secrets bindings --target compute/app --json
 insta --agent secrets set NAME value                 # user config (project-wide; --branch for overrides)
 insta --agent build . --port 8080                    # local pre-deploy build/readiness check
-insta --agent deploy . --port 8080                   # build (Dockerfile) + deploy to the current branch
+insta --agent deploy . --port 8080                   # remote build (Dockerfile, or nixpacks on insta-compute) + deploy to the current branch
 insta --agent deploy --image <ref> --port 8080       # prebuilt image instead
 insta --agent compute connect-repo owner/repo app    # or: build + deploy from GitHub on every push (cloud; GitHub App in the console first, or --public)
 insta --agent compute exec app -- printenv PORT      # one-shot command on live compute (no shell/stdin)

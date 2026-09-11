@@ -74,7 +74,7 @@ insta --agent services add postgres db                          # + redis/storag
 insta --agent services add compute app --port <n>               # REQUIRED: the bind below targets it
 insta --agent secrets bind DATABASE_URL postgres/db --to compute/app
 insta --agent deploy --image <registry/img> --port <n>          # works on every compute plane
-# or: insta --agent deploy <dir> --port <n>                     # Dockerfile required, Fly-backed compute only
+# or: insta --agent deploy <dir> --port <n>                     # insta-compute: Dockerfile optional (gateway builds it, nixpacks if none); Fly-backed: Dockerfile required
 # or: insta --agent compute connect-repo <owner/repo> app       # attaches to THIS service; nixpacks if no Dockerfile
 ```
 
@@ -421,7 +421,7 @@ data loss. "If verification fails, just point back at the source" is wrong once 
 |---|---|
 | **A binding is not live until a deploy** | Env is materialized into machine config at deploy time. `insta --agent secrets bind` changes the rules only; the running machine keeps its old env until `insta --agent deploy` (first time) or `insta --agent compute restart` (already running). Until then **the app still writes to the old database.** |
 | **`--port` must equal the listen port** | `PORT` is injected as the routed port. An app reading `$PORT` is fine; a hardcoded port boots "successfully" and refuses every request. Source deploys default from the Dockerfile's last `EXPOSE` — read the line the CLI prints and confirm it. |
-| **Three routes get code in on every plane** | `insta --agent deploy --image`; `insta --agent compute connect-repo <owner/repo> <service>` (attaches to an EXISTING service and builds its Dockerfile, or detects the runtime with nixpacks when there is none — `--public` needs no GitHub App, `--root-dir` handles a monorepo); or the console's repo binding, which CREATES a service rather than attaching. `insta --agent deploy <dir>` needs a Dockerfile **and** Fly-backed compute — on insta-compute the platform refuses it outright, Dockerfile or not, with `source builds are not supported on the insta-compute provider yet`. Do not plan a migration around it unless you have confirmed the target's plane. |
+| **Four routes get code in** | `insta --agent deploy --image` (every plane); `insta --agent deploy <dir>` — on **insta-compute** the directory is packed, uploaded and built by the build gateway, with its Dockerfile or with nixpacks when there is none, so a checkout of the source app deploys as-is; on **Fly-backed** compute it needs the dir's own Dockerfile. `insta --agent compute connect-repo <owner/repo> <service>` (attaches to an EXISTING service and builds its Dockerfile, or detects the runtime with nixpacks when there is none — `--public` needs no GitHub App, `--root-dir` handles a monorepo); or the console's repo binding, which CREATES a service rather than attaching. A CLI that predates this lane answers `source builds are not supported on the insta-compute provider yet` for such a target: run `insta upgrade` and retry. |
 | **Postgres scales to zero** | Keep the pool's `idleTimeoutMillis` under the suspend window, or the first request after a wake fails on a dead pooled connection. |
 | **No bulk env import** | `insta --agent secrets set <name>` takes one variable per call (value as an argument or on stdin). Loop over the source's export, and drop the platform's own vars — `HEROKU_*`, `RAILWAY_*`, `DYNO`, `PORT`. |
 | **`insta --agent secrets list` prints names only** | It cannot reveal a truncated or mis-escaped value. To compare values, use `insta --agent secrets --print --json` — **not** bare `--print`, which double-quotes every value and does not escape embedded newlines, so a multi-line value breaks line-oriented parsing and every key then digests differently from the source export. |
@@ -643,10 +643,10 @@ as any: creating a target volume does not copy contents.
 **Fly.** The easiest source of the four, and the only one that is not a Postgres downgrade: Fly
 Managed Postgres runs **16**, the same major as insta's, so step 3 needs no filter. A Fly app also
 already has a `Dockerfile` and a `fly.toml`, so `insta --agent deploy . --port <n>` works directly
-**on Fly-backed compute only** — the same restriction as everywhere else in this file: on
-insta-compute the platform refuses it outright, so confirm the target's plane before planning
-around it, and fall back to `connect-repo`. Where it is available it also means
-`internal_port` in `fly.toml` is the `--port` value. `[processes]` maps onto compute services, and
+on either plane — insta-compute builds the Dockerfile on the build gateway, Fly-backed compute on
+Fly's remote builder (a CLI that predates the insta-compute lane answers `source builds are not
+supported on the insta-compute provider yet`: `insta upgrade`). `internal_port` in `fly.toml` is
+the `--port` value. `[processes]` maps onto compute services, and
 volumes carry the same caveat as any. **The one real obstacle is secrets:** `fly secrets list`
 returns names and digests only, because "the actual value of the secret is only available to the
 application", so there is no export. Read them off a running machine with
