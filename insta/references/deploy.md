@@ -106,15 +106,46 @@ app's expected status) → report deployed **with the URL**. Anything else → t
 - **Redeploy replaces.** Compute is stateless — anything written to the container filesystem is
   gone on the next deploy. State belongs in the branch's postgres/storage.
 
-## Custom domains (bring your own)
+## Custom domains
+
+**You already own the name** — you set the DNS, InstaCloud does the cert and routing:
 
 ```bash
 insta --agent compute set-domain app.example.com [--branch --group]   # prints the DNS records to add
 insta --agent compute check-domain app.example.com                    # status once DNS propagates
 ```
 
-Cert + routing are handled for you; the DNS records live in **your** registrar (CNAME for a
-subdomain, A/AAAA for an apex, + a validation CNAME).
+The records live in **your** registrar (CNAME for a subdomain, A/AAAA for an apex, + a validation CNAME).
+
+**You want to buy one** — InstaCloud registers it for you and attaches it itself:
+
+```bash
+insta domain contact set --first-name … --phone +14155550100   # once per org — HUMAN, admin, no --agent
+insta --agent domain search myapp --tlds com,dev                # prices you pay, + renewal
+insta --agent domain buy myapp.com --no-open                     # → a Stripe Checkout URL to relay
+insta --agent domain status myapp.com                           # poll until active
+```
+
+Three things to get right as an agent:
+
+1. **`buy` always ends with a human; whether it also starts with one depends on the policy.** The
+   Checkout URL it answers has to be opened and paid by a person — that half is unconditional, so
+   relay it verbatim and stop rather than reporting the domain as bought. Whether the ORDER needs
+   approval first is the project's agent policy: `full_access`, which a new project starts on,
+   allows `domain.purchase` outright and you get the URL immediately; `branch_developer` answers
+   `approval_required` (relay that line too); `read_only` refuses.
+2. **Nothing is registered before payment, and registrations are non-refundable.** A wrong name is
+   real money, so read the quote back before ordering.
+3. **The registrant is the customer, not us**, and setting the org default is a **human** step: the
+   first line above has no `--agent` because that org-level write is unclassified for agents and is
+   refused `403 unclassified_agent_action` under any policy. Relay it to an admin, or pass the
+   contact the human gave you per purchase with `domain buy --contact-file c.json`.
+   `--company-name` makes that organization the legal owner instead of the person.
+
+Afterwards the platform registers the name, publishes the DNS in the zone it controls, and attaches
+`myapp.com` **and** `www.myapp.com` to the compute service — no records for you to add. Delete that
+service and the domain goes `detached`: the registration stands, and
+`insta --agent domain attach myapp.com --group <service>` binds it somewhere else.
 
 ## Dockerfile templates → use the framework recipes
 
