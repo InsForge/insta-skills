@@ -149,6 +149,10 @@ mapping + connection guide: **[mcp.md](references/mcp.md)**.
 `insta --agent setup agent -y` (installs the skill + registers MCP for Claude Code and every detected
 agent), then tell the user to **restart their coding tool** — a running session never picks up
 newly registered MCP servers or tools. One specific agent: `insta --agent mcp install --agent <slug>`.
+Registration alone does not authenticate the client; actual tool use requires a completed OAuth
+flow or an authorized credential. The `--mcp-token` option requires token-creation permission;
+an agent denied with `403 unclassified_agent_action` must stop that attempt, not retry as human.
+For unattended authentication, read [mcp.md](references/mcp.md#connecting).
 
 ## Intent-based routing
 
